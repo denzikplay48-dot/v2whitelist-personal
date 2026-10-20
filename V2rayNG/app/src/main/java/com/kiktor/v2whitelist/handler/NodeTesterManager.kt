@@ -291,28 +291,6 @@ object NodeTesterManager {
         }
     }
 
-    fun verifyAndCacheLeftovers(context: Context, candidates: List<Triple<String, ProfileItem, Long>>) {
-        val limitedCandidates = candidates.take(3)
-        CoroutineScope(Dispatchers.IO).launch {
-            kotlinx.coroutines.withTimeoutOrNull(30_000L) {
-                val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true)
-                for (candidate in limitedCandidates) {
-                    if (!isActive) break
-                    if (MmkvManager.getVipCache().size >= MmkvManager.getVipCacheLimit()) break
-                    if (profileCheckEnabled) {
-                        if (verifyProfile(context, candidate.first, showStatus = false)) {
-                            GeekModeLogger.log("NodeTester", "Background: added ${candidate.second.remarks} to VIP cache")
-                            MmkvManager.addVipServer(candidate.first)
-                        }
-                    } else {
-                        GeekModeLogger.log("NodeTester", "Background: added ${candidate.second.remarks} to VIP cache (no deep check)")
-                        MmkvManager.addVipServer(candidate.first)
-                    }
-                }
-            }
-        }
-    }
-
     fun buildProportionalChunks(servers: List<Pair<String, ProfileItem>>): List<List<Pair<String, ProfileItem>>> {
         return ChunkingHelper.buildProportionalChunks(servers)
     }

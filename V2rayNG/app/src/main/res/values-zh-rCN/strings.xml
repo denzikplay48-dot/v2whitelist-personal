@@ -460,9 +460,6 @@
     <string name="location_filter_server_count">节点数: %d</string>
     <string name="location_filter_unknown">未知地区</string>
     <string name="geek_mode_btn_ping_test">Ping 测试</string>
-    <string name="geek_mode_btn_find_vip">查找 VIP</string>
-    <string name="geek_mode_btn_ping_vip">Ping VIP</string>
-    <string name="geek_mode_vip_cache">VIP 缓存:</string>
     <string name="geek_mode_logs_title">实时日志:</string>
     <string name="geek_mode_no_server">未选择节点</string>
     <string name="geek_mode_unknown_config">未知配置</string>
@@ -583,17 +580,15 @@
     <string name="status_updating_subscription">正在更新节点列表…</string>
     <string name="status_starting_smart_connect">正在为您寻找最佳节点…</string>
     <string name="status_testing_servers">正在测试节点延迟与速率…</string>
-    <string name="status_checking_vip_servers">正在通过 VIP 节点快速连接…</string>
     <string name="status_found_best">已找到优质节点！正在连接…</string>
     <string name="status_connecting_to">正在连接至 %s…</string>
-    <string name="status_using_cached_server">快速连接至 %s…</string>
     <string name="status_switching_server">正在切换到其他节点…</string>
     <string name="status_no_servers">未找到可用节点，请尝试更新订阅。</string>
     <string name="status_no_internet">无网络连接。</string>
     <string name="status_waiting_for_network">无直接外网访问，正在等待网络就绪…</string>
     <string name="status_jamming_detected">检测到网络可能受限，正在搜寻可用突破节点…</string>
     <string name="status_updating_via_vpn">正在通过已连接的 VPN 更新订阅…</string>
-    <string name="app_name">ПроБел</string>
+    <string name="app_name">ПроБел-D</string>
     <string name="notification_action_pause">暂停</string>
     <string name="notification_action_resume">恢复</string>
     <string name="notification_content_paused">服务已暂停</string>
@@ -610,8 +605,6 @@
     <string name="summary_pref_check_update_pre_release">允许检查并下载测试预览版</string>
     <string name="title_pref_custom_user_agent">自定义 User-Agent</string>
     <string name="summary_pref_custom_user_agent">下载订阅时使用的客户端标识</string>
-    <string name="title_pref_vip_cache_limit">VIP 节点缓存数量</string>
-    <string name="summary_pref_vip_cache_limit">保留用于极速连接的最佳节点数量上限</string>
     <string name="title_auto_failover_settings">自动故障转移 (Failover)</string>
     <string name="title_pref_auto_failover">断线自动切换</string>
     <string name="summary_pref_auto_failover">当前节点无法联网时自动切换到备用节点</string>

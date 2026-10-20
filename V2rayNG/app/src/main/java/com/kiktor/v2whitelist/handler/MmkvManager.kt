@@ -42,6 +42,11 @@ object MmkvManager {
     private val assetStorage by lazy { MMKV.mmkvWithID(ID_ASSET, MMKV.MULTI_PROCESS_MODE) }
     private val settingsStorage by lazy { MMKV.mmkvWithID(ID_SETTING, MMKV.MULTI_PROCESS_MODE) }
 
+    init {
+        settingsStorage.remove(AppConfig.LEGACY_PREF_VIP_CACHE)
+        settingsStorage.remove("pref_vip_cache_limit")
+    }
+
     //endregion
 
     //region Server
@@ -989,80 +994,51 @@ object MmkvManager {
         settingsStorage.remove(com.kiktor.v2whitelist.AppConfig.PREF_LAST_CONNECT_TIME)
     }
 
-    /**
-     * Возвращает список VIP-серверов (кэш проверенных серверов, до 5 штук).
-     */
-    fun getVipCache(): MutableList<String> {
-        val str = settingsStorage.decodeString(com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE)
-        if (str.isNullOrBlank()) return mutableListOf()
-        
-        // Backward compatibility for old JSON format
-        if (str.startsWith("[")) {
-            return try {
-                val type = object : com.google.gson.reflect.TypeToken<MutableList<String>>() {}.type
-                com.google.gson.Gson().fromJson<MutableList<String>>(str, type) ?: mutableListOf()
-            } catch (e: Exception) {
-                mutableListOf()
-            }
+    fun getAutoFailoverQuarantineMinutes(): Int =
+        (decodeSettingsString(AppConfig.PREF_AUTO_FAILOVER_QUARANTINE_MINUTES, "45")
+            ?.toIntOrNull() ?: 45).coerceIn(0, 10_080)
+
+    fun getActiveFailoverQuarantines(nowMillis: Long = System.currentTimeMillis()): Map<String, Long> {
+        if (getAutoFailoverQuarantineMinutes() == 0) {
+            settingsStorage.remove(AppConfig.PREF_FAILOVER_QUARANTINE_PROFILES)
+            return emptyMap()
         }
-        
-        return str.split(",").filter { it.isNotBlank() }.toMutableList()
-    }
 
-    /**
-     * Добавляет сервер в VIP-кэш (в начало, LRU).
-     * Если превышает 5, удаляет самые старые.
-     */
-    fun getVipCacheLimit(): Int {
-        val defaultLimit = 5
-        val limitStr = decodeSettingsString("pref_vip_cache_limit")
-        return limitStr?.toIntOrNull() ?: defaultLimit
-    }
+        val raw = settingsStorage.decodeString(AppConfig.PREF_FAILOVER_QUARANTINE_PROFILES)
+            ?: return emptyMap()
+        val parsed = raw.split(',').mapNotNull { entry ->
+            val separator = entry.lastIndexOf('=')
+            if (separator <= 0) return@mapNotNull null
+            val guid = entry.substring(0, separator)
+            val expiresAt = entry.substring(separator + 1).toLongOrNull() ?: return@mapNotNull null
+            if (guid.isBlank() || expiresAt <= nowMillis) return@mapNotNull null
+            guid to expiresAt
+        }.toMap()
 
-    fun addVipServer(guid: String) {
-        if (guid.isBlank()) return
-        val cache = getVipCache()
-        // Удаляем если уже есть, чтобы переместить в начало
-        cache.remove(guid)
-        cache.add(0, guid)
-        
-        val limit = getVipCacheLimit()
-        while (cache.size > limit) {
-            cache.removeAt(cache.size - 1)
+        if (parsed.size != raw.split(',').size) {
+            replaceFailoverQuarantines(parsed)
         }
-        settingsStorage.encode(com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE, cache.joinToString(","))
+        return parsed
     }
 
-    /**
-     * Удаляет сервер из VIP-кэша.
-     */
-    fun removeVipServer(guid: String) {
-        if (guid.isBlank()) return
-        val cache = getVipCache()
-        if (cache.remove(guid)) {
-            settingsStorage.encode(com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE, cache.joinToString(","))
+    fun quarantineProfileForAutoFailover(guid: String): Boolean {
+        if (guid.isBlank()) return false
+        val durationMillis = getAutoFailoverQuarantineMinutes() * 60_000L
+        if (durationMillis <= 0L) return false
+
+        val quarantines = getActiveFailoverQuarantines().toMutableMap()
+        quarantines[guid] = System.currentTimeMillis() + durationMillis
+        replaceFailoverQuarantines(quarantines)
+        return true
+    }
+
+    fun replaceFailoverQuarantines(quarantines: Map<String, Long>) {
+        if (quarantines.isEmpty()) {
+            settingsStorage.remove(AppConfig.PREF_FAILOVER_QUARANTINE_PROFILES)
+        } else {
+            val serialized = quarantines.entries.joinToString(",") { (guid, expiresAt) -> "$guid=$expiresAt" }
+            settingsStorage.encode(AppConfig.PREF_FAILOVER_QUARANTINE_PROFILES, serialized)
         }
-    }
-
-    /**
-     * Очищает весь VIP-кэш.
-     */
-    fun clearVipCache() {
-        settingsStorage.remove(com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE)
-    }
-
-    /**
-     * Полностью заменяет VIP-кэш на новый список GUID-ов.
-     * Используется для ремаппинга после обновления подписок,
-     * когда старые GUID-ы умирают и заменяются новыми.
-     */
-    fun replaceVipCache(guids: List<String>) {
-        if (guids.isEmpty()) {
-            clearVipCache()
-            return
-        }
-        val trimmed = guids.take(5)
-        settingsStorage.encode(com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE, trimmed.joinToString(","))
     }
 
     /**

@@ -277,8 +277,8 @@ object YandexTranslateUpdater {
         val modeStr = if (sequential) "последовательный режим, 1 поток" else "2 потока"
         Log.i(AppConfig.TAG, "YandexTranslateUpdater: starting update (isDebug=$isDebug, sequential=$sequential)")
 
-        // 1. Снимок кэшей серверов для последующего ремаппинга
-        data class ServerIdentity(val server: String?, val port: String?, val remarks: String)
+        // 1. Снимок состояния серверов для последующего ремаппинга
+        data class ServerIdentity(val server: String?, val port: String?, val remarks: String, val quarantineUntil: Long? = null)
 
         val lastServerGuid = MmkvManager.getValidLastServer()
         val lastServerIdentity = lastServerGuid?.let { guid ->
@@ -287,10 +287,9 @@ object YandexTranslateUpdater {
             }
         }
 
-        val vipGuids = MmkvManager.getVipCache()
-        val vipIdentities = vipGuids.mapNotNull { guid ->
+        val quarantineIdentities = MmkvManager.getActiveFailoverQuarantines().mapNotNull { (guid, expiresAt) ->
             MmkvManager.decodeServerConfig(guid)?.let { p ->
-                ServerIdentity(p.server, p.serverPort, p.remarks)
+                ServerIdentity(p.server, p.serverPort, p.remarks, expiresAt)
             }
         }
 
@@ -416,7 +415,7 @@ object YandexTranslateUpdater {
         }
 
         // 5. Ремаппинг кэшей
-        if (lastServerIdentity != null || vipIdentities.isNotEmpty()) {
+        if (lastServerIdentity != null || quarantineIdentities.isNotEmpty()) {
             val updatedServers = MmkvManager.decodeServerList()
             val identityIndex = mutableMapOf<String, String>()
             for (guid in updatedServers) {
@@ -437,16 +436,13 @@ object YandexTranslateUpdater {
                 }
             }
 
-            if (vipIdentities.isNotEmpty()) {
-                val remapped = vipIdentities.mapNotNull { id ->
+            if (quarantineIdentities.isNotEmpty()) {
+                val remapped = quarantineIdentities.mapNotNull { id ->
+                    val expiresAt = id.quarantineUntil ?: return@mapNotNull null
                     val key = "${id.server}|${id.port}|${id.remarks}"
-                    identityIndex[key]
-                }
-                if (remapped.isNotEmpty()) {
-                    MmkvManager.replaceVipCache(remapped)
-                } else {
-                    MmkvManager.clearVipCache()
-                }
+                    identityIndex[key]?.let { it to expiresAt }
+                }.toMap()
+                MmkvManager.replaceFailoverQuarantines(remapped)
             }
         }
 

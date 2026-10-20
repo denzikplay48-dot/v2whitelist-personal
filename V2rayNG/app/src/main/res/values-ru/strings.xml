@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_display_name">ПроБел</string>
-    <string name="app_widget_name">ПроБел</string>
-    <string name="app_tile_name">ПроБел</string>
+    <string name="app_display_name">ПроБел-D</string>
+    <string name="app_widget_name">ПроБел-D</string>
+    <string name="app_tile_name">ПроБел-D</string>
     <string name="app_tile_first_use">Первое использование этой функции, пожалуйста, используйте приложение, чтобы добавить сервер</string>
     <string name="title_pref_add_qs_tile">Плитка в шторке быстрых настроек</string>
-    <string name="summary_pref_add_qs_tile">Добавить плитку «ПроБел» в панель уведомлений для быстрого включения</string>
-    <string name="msg_qs_tile_manual_hint">Опустите шторку уведомлений, нажмите «Редактировать» (значок карандаша) и перетащите плитку «ПроБел»</string>
+    <string name="summary_pref_add_qs_tile">Добавить плитку «ПроБел-D» в панель уведомлений для быстрого включения</string>
+    <string name="msg_qs_tile_manual_hint">Опустите шторку уведомлений, нажмите «Редактировать» (значок карандаша) и перетащите плитку «ПроБел-D»</string>
     <string name="navigation_drawer_open">Открыть панель навигации</string>
     <string name="navigation_drawer_close">Закрыть панель навигации</string>
     <string name="migration_success">Успешный перенос данных!</string>
@@ -287,6 +287,9 @@
     <string name="summary_pref_auto_failover">Автоматически переключаться на следующий сервер, если текущий не отвечает</string>
     <string name="title_pref_auto_failover_interval">Интервал проверки Heartbeat (секунд)</string>
     <string name="summary_pref_auto_failover_interval">Периодичность плановой проверки туннеля. По умолчанию: 30с</string>
+    <string name="title_pref_auto_failover_quarantine_minutes">Карантин проблемного профиля (минуты)</string>
+    <string name="summary_pref_auto_failover_quarantine_minutes">После авто-переключения не выбирать профиль, на котором произошёл сбой, в течение %1$d мин. 0 — отключено; максимум 10080 минут.</string>
+    <string name="error_failover_quarantine_minutes_range">Укажите от 0 до 10080 минут.</string>
     <string name="title_pref_smart_failover">Smart Failover (Бета)</string>
     <string name="summary_pref_smart_failover">Быстрое обнаружение затыков по трафику и арбитраж сети (ya.ru vs google.com) без долгих таймаутов</string>
     <string name="title_pref_smart_failover_threshold">Порог деградации трафика (КБ/с)</string>
@@ -295,7 +298,7 @@
     <string name="summary_pref_smart_failover_stall">Сколько секунд должен длиться затык трафика перед запуском проверки. По умолчанию: 3с</string>
     <string name="failover_notification_title">Связь с сервером потеряна</string>
     <string name="failover_notification_content">Ищем новый сервер и переподключаемся...</string>
-    <string name="title_v2whitelist_settings">Фишки ПроБел</string>
+    <string name="title_v2whitelist_settings">Фишки ПроБел-D</string>
 
     <string name="title_pref_chunk_size">Размер пачки серверов</string>
     <string name="summary_pref_chunk_size">Сколько серверов тестировать за один проход (по умолчанию: 20)</string>
@@ -495,10 +498,8 @@
     <string name="status_updating_subscription">Обновляем список серверов…</string>
     <string name="status_starting_smart_connect">Ищем лучший сервер для вас…</string>
     <string name="status_testing_servers">Проверяем скорость серверов…</string>
-    <string name="status_checking_vip_servers">Быстрое подключение через топ серверов…</string>
     <string name="status_found_best">Нашли отличный сервер! Подключаемся…</string>
     <string name="status_connecting_to">Подключаемся к %s…</string>
-    <string name="status_using_cached_server">Быстрое подключение к %s…</string>
     <string name="status_switching_server">Выбираем другой сервер…</string>
     <string name="status_no_servers">Серверы не найдены. Попробуйте обновить список.</string>
     <string name="status_no_internet">Нет интернета.</string>
@@ -526,7 +527,7 @@
     <string name="title_location_filter">Фильтр</string>
     <string name="btn_label_filter">Фильтр</string>
     <string name="btn_label_share">Поделиться</string>
-    <string name="share_app_text">ПроБел (v2Whitelist) — клиент для обхода блокировок и белых списков на мобильном интернете. Бесплатно, без рекламы и слежки! Прямая ссылка на скачивание:\n%1$s</string>
+    <string name="share_app_text">ПроБел-D — клиент для обхода блокировок и белых списков на мобильном интернете. Бесплатно, без рекламы и слежки! Прямая ссылка на скачивание:\n%1$s</string>
     <string name="location_filter_mode_title">Режим фильтра</string>
     <string name="location_filter_mode_exclude">Исключение</string>
     <string name="location_filter_mode_whitelist">Белый список</string>
@@ -539,9 +540,6 @@
 
     <!-- Geek Mode -->
     <string name="geek_mode_btn_ping_test">Пинг-тест</string>
-    <string name="geek_mode_btn_find_vip">Искать VIP</string>
-    <string name="geek_mode_btn_ping_vip">Пинг VIP</string>
-    <string name="geek_mode_vip_cache">VIP Кэш:</string>
     <string name="geek_mode_logs_title">Логи (Real-time):</string>
     <string name="geek_mode_no_server">Сервер не выбран</string>
     <string name="geek_mode_unknown_config">Неизвестный конфиг</string>
@@ -595,7 +593,7 @@
     <string name="msg_import_fail">Ошибка импорта данных</string>
 
     <!-- UI & Notifications -->
-    <string name="app_name">ПроБел</string>
+    <string name="app_name">ПроБел-D</string>
     <string name="btn_show_qr">QR</string>
     <string name="title_qr_code">QR-код</string>
     <string name="notification_action_pause">Пауза</string>
@@ -607,8 +605,6 @@
     <string name="title_v2w_core_settings">Сканирующее ядро v2w-core</string>
     <string name="title_profile_check_settings">Проверка профилей</string>
     <string name="title_v2whitelist_settings_misc">Дополнительные настройки</string>
-    <string name="title_pref_vip_cache_limit">Лимит VIP-кэша</string>
-    <string name="summary_pref_vip_cache_limit">Максимальное число серверов в кэше быстрого переподключения VIP</string>
     <string name="title_pref_logcat">Журнал логов</string>
     <string name="summary_pref_logcat">Просмотр системных логов ядра v2ray и приложения</string>
 
@@ -638,7 +634,7 @@
     <string name="update_failed_download">Не удалось скачать файл обновления</string>
 
     <!-- About Screen & Dialog -->
-    <string name="about_app_description">ПроБел представляет собой минималистичный и оптимизированный клиент. Главная цель проекта — обеспечить надежный обход ТСПУ (технических средств противодействия угрозам) и глушилок мобильной связи, предоставляя быстрый и бесперебойный доступ.</string>
+    <string name="about_app_description">ПроБел-D представляет собой минималистичный и оптимизированный клиент. Главная цель проекта — обеспечить надежный обход ТСПУ (технических средств противодействия угрозам) и глушилок мобильной связи, предоставляя быстрый и бесперебойный доступ.</string>
     <string name="about_app_license">Лицензия проекта: GNU GPLv3</string>
     <string name="about_app_tg_channel">Telegram-канал</string>
     <string name="about_app_source_code">Исходный код (GitHub):</string>
@@ -646,7 +642,7 @@
     <string name="about_version_format">Версия: v%s</string>
 
     <!-- Onboarding / Setup Wizard -->
-    <string name="onboarding_purpose_title">Для чего вам ПроБел?</string>
+    <string name="onboarding_purpose_title">Для чего вам ПроБел-D?</string>
     <string name="onboarding_purpose_subtitle">Выберите основной сценарий работы. Приложение автоматически включит подходящие подписки (их всегда можно изменить в настройках).</string>
     <string name="scenario_auto_title">0. Авто (Рекомендуется)</string>
     <string name="scenario_auto_desc">Умное переключение под сеть: быстрый обычный VPN на Wi-Fi и домашнем интернете, автоматический переход на Белые списки при глушилках и изоляции.</string>

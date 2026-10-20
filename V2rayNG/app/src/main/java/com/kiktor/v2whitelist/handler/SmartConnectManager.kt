@@ -77,9 +77,11 @@ object SmartConnectManager {
     fun filterServerPairs(
         candidates: List<Pair<String, ProfileItem>>, 
         excludeGuid: String? = null,
-        filterByScenario: Boolean = true
+        filterByScenario: Boolean = true,
+        excludeQuarantined: Boolean = true
     ): List<Pair<String, ProfileItem>> {
         val disabledSubIds = loadCustomSubs().filter { !it.enabled }.map { "custom_sub_${it.id}" }.toSet()
+        val quarantinedGuids = if (excludeQuarantined) MmkvManager.getActiveFailoverQuarantines().keys else emptySet()
         
         val filterMode = MmkvManager.decodeSettingsString(
             AppConfig.PREF_LOCATION_FILTER_MODE,
@@ -94,6 +96,7 @@ object SmartConnectManager {
 
         val basicFiltered = candidates.filter { (guid, profile) ->
             if (excludeGuid != null && guid == excludeGuid) return@filter false
+            if (quarantinedGuids.contains(guid)) return@filter false
             if (disabledSubIds.contains(profile.subscriptionId)) return@filter false
             if (filterInsecure && !profile.isSecure()) return@filter false
             if (profile.configType == com.kiktor.v2whitelist.enums.EConfigType.POLICYGROUP) return@filter false
@@ -159,157 +162,43 @@ object SmartConnectManager {
         }
     }
 
-    fun filterServers(allServers: List<String>, excludeGuid: String? = null, filterByScenario: Boolean = true): List<Pair<String, ProfileItem>> {
+    fun filterServers(
+        allServers: List<String>,
+        excludeGuid: String? = null,
+        filterByScenario: Boolean = true,
+        excludeQuarantined: Boolean = true
+    ): List<Pair<String, ProfileItem>> {
         val candidates = allServers.mapNotNull { guid ->
             val profile = MmkvManager.decodeServerConfig(guid)
             if (profile != null) guid to profile else null
         }
-        return filterServerPairs(candidates, excludeGuid, filterByScenario)
+        return filterServerPairs(candidates, excludeGuid, filterByScenario, excludeQuarantined)
     }
 
-    fun cleanVipCacheForFilter() {
+    fun clearSelectedServerIfFilteredOut() {
         val allServers = MmkvManager.decodeServerList()
-        val validFilteredGuids = filterServers(allServers, filterByScenario = false).map { it.first }.toSet()
-        val currentVipGuids = MmkvManager.getVipCache()
-        for (guid in currentVipGuids) {
-            if (!validFilteredGuids.contains(guid)) {
-                MmkvManager.removeVipServer(guid)
-            }
-        }
+        val validFilteredGuids = filterServers(
+            allServers,
+            filterByScenario = false,
+            excludeQuarantined = false
+        ).map { it.first }.toSet()
         val currentSelected = MmkvManager.getSelectServer()
         if (currentSelected != null && currentSelected.isNotEmpty() && !validFilteredGuids.contains(currentSelected)) {
             MmkvManager.setSelectServer("")
         }
     }
 
-
-
-
-    suspend fun findMoreVipServers(context: Context): Boolean = withContext(Dispatchers.IO) {
-        NetworkManager.waitForInternet(context)
-        val allServers = MmkvManager.decodeServerList()
-        val currentVipGuids = MmkvManager.getVipCache().toSet()
-        val candidates = filterServers(allServers, null)
-            .filter { !currentVipGuids.contains(it.first) }
-            .shuffled()
-        
-        if (candidates.isEmpty()) {
-            GeekModeLogger.log("SmartConnect", "findMoreVipServers: no new servers available to check")
-            return@withContext false
-        }
-        
-        val chunkedServers = buildProportionalChunks(candidates)
-        if (chunkedServers.isEmpty()) return@withContext false
-        
-        val chunk = chunkedServers.first()
-        GeekModeLogger.log("SmartConnect", "findMoreVipServers: starting chunk check of ${chunk.size} servers to replenish VIP")
-        
-        val results = NodeTesterManager.testServers(context, chunk)
-        if (results.isEmpty()) {
-            GeekModeLogger.log("SmartConnect", "findMoreVipServers: chunk yielded no results")
-            return@withContext false
-        }
-        
-        var added = 0
-        for (candidate in results) {
-            val success = NodeTesterManager.verifyProfile(context, candidate.first)
-            if (success) {
-                MmkvManager.addVipServer(candidate.first)
-                GeekModeLogger.log("SmartConnect", "findMoreVipServers: server ${candidate.second.remarks} added to VIP cache")
-                added++
-            }
-        }
-        
-        GeekModeLogger.log("SmartConnect", "findMoreVipServers: completed, added $added servers")
-        return@withContext added > 0
-    }
-
-    
-
     const val SUBSCRIPTION_ID = "v2whitelist_hardcoded_sub"
     const val UPDATE_INTERVAL_MS = 60 * 60 * 1000L // 1 hour
 
 
 
-    /**
-     * Быстрый путь (Fast Path): проверяем серверы из VIP-кэша.
-     */
-    private suspend fun checkVipCacheAndConnect(context: Context, isStartup: Boolean = false): Boolean {
-        val vipGuids = MmkvManager.getVipCache()
-        if (vipGuids.isEmpty()) return false
-
-        GeekModeLogger.log("SmartConnect", "VIP Cache: checking ${vipGuids.size} servers")
-        
-        val vipCandidates = mutableListOf<Pair<String, ProfileItem>>()
-        val invalidGuids = mutableListOf<String>()
-        for (guid in vipGuids) {
-            val profile = MmkvManager.decodeServerConfig(guid)
-            if (profile != null) {
-                vipCandidates.add(Pair(guid, profile))
-            } else {
-                invalidGuids.add(guid)
-            }
-        }
-        
-        invalidGuids.forEach { MmkvManager.removeVipServer(it) }
-        
-        val filteredVipCandidates = filterServerPairs(vipCandidates)
-        if (filteredVipCandidates.isEmpty()) {
-            GeekModeLogger.log("SmartConnect", "VIP Cache: no VIP servers match current filters")
-            return false
-        }
-        
-        sendStatus(context, context.getString(R.string.status_checking_vip_servers))
-        
-        val results = NodeTesterManager.testServers(context, filteredVipCandidates)
-        val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true)
-        
-        val validResults = results.filter { it.third < Long.MAX_VALUE }
-        
-        if (profileCheckEnabled) {
-            for (candidate in validResults) {
-                if (NodeTesterManager.verifyProfile(context, candidate.first)) {
-                    connectToBest(context, candidate, isStartup, isFromVipCache = true)
-                    val leftovers = validResults.filter { it.first != candidate.first }
-                    if (leftovers.isNotEmpty()) {
-                        NodeTesterManager.verifyAndCacheLeftovers(context.applicationContext, leftovers)
-                    }
-                    return true
-                } else {
-                    GeekModeLogger.log("SmartConnect", "VIP Cache: server ${candidate.first} failed deep check, removing")
-                    MmkvManager.removeVipServer(candidate.first)
-                }
-            }
-        } else {
-            val candidate = validResults.firstOrNull()
-            if (candidate != null) {
-                connectToBest(context, candidate, isStartup, isFromVipCache = true)
-                val leftovers = validResults.filter { it.first != candidate.first }
-                if (leftovers.isNotEmpty()) {
-                    NodeTesterManager.verifyAndCacheLeftovers(context.applicationContext, leftovers)
-                }
-                return true
-            }
-        }
-        
-        GeekModeLogger.log("SmartConnect", "VIP Cache: all valid servers failed")
-        return false
-    }
-
-    
-
-    private suspend fun connectToBest(context: Context, best: Triple<String, ProfileItem, Long>, isStartup: Boolean = false, isFromVipCache: Boolean = false) {
+    private suspend fun connectToBest(context: Context, best: Triple<String, ProfileItem, Long>, isStartup: Boolean = false) {
         GeekModeLogger.log("SmartConnect", "Smart Connect: Selected ${best.second.remarks} (${best.third}ms)")
-        if (isFromVipCache) {
-            sendStatus(context, context.getString(R.string.status_using_cached_server, best.second.remarks))
-        } else {
-            sendStatus(context, context.getString(R.string.status_connecting_to, best.second.remarks))
-        }
+        sendStatus(context, context.getString(R.string.status_connecting_to, best.second.remarks))
         MmkvManager.setSelectServer(best.first)
 
-        MmkvManager.addVipServer(best.first)
         MmkvManager.saveLastConnectedServer(best.first)
-        GeekModeLogger.log("SmartConnect", "SmartConnect: server ${best.second.remarks} saved to top VIP cache")
 
         val isRunning = V2RayServiceManager.isRunning()
         if (isRunning) {
@@ -369,16 +258,8 @@ object SmartConnectManager {
         }
         NotificationManager.showScanningNotification(context)
         try {
-            // Ждем появления интернета (dzen.ru) перед тем, как трогать кэш и удалять мертвые серверы
+            // Ждем появления интернета перед проверкой доступных серверов
             NetworkManager.waitForInternet(context)
-
-            // ── Быстрый путь: кэш проверенных VIP-серверов ──────────────────────────────
-            if (checkVipCacheAndConnect(context, isStartup = true)) {
-                NotificationManager.cancelFailoverNotification()
-                return@withContext true
-            }
-
-            // ── Полный SmartConnect ────────────────────────────────────────────────
 
 
             // Проверяем состояние интернета и запоминаем — чтобы не перезаписать в цикле
@@ -459,10 +340,6 @@ object SmartConnectManager {
                 }
 
                 if (best != null) {
-                    val leftovers = results.filter { it.first != best.first && it.third < Long.MAX_VALUE }
-                    if (leftovers.isNotEmpty()) {
-                        NodeTesterManager.verifyAndCacheLeftovers(context.applicationContext, leftovers)
-                    }
                     break // Found a working server, stop testing other chunks
                 }
                 GeekModeLogger.log("SmartConnect", "No working server found in chunk ${index + 1}, moving to next chunk...")
@@ -512,15 +389,6 @@ object SmartConnectManager {
             
             val currentGuid = MmkvManager.getSelectServer()
             
-            // Если пользователь вручную нажал "Сменить сервер", значит текущий сервер его чем-то
-            // не устроил (например, забанен IP). Удаляем его из VIP-кэша, чтобы:
-            // 1. Не зацикливаться между одними и теми же серверами при многократном нажатии.
-            // 2. Не подключаться к этому отвергнутому серверу при следующем запуске.
-            if (currentGuid != null) {
-                GeekModeLogger.log("SmartConnect", "switchServer: user manually rejected current server, removing from VIP cache")
-                MmkvManager.removeVipServer(currentGuid)
-            }
-            
             val allServers = MmkvManager.decodeServerList()
             val filteredServers = filterServers(allServers, excludeGuid = currentGuid).shuffled()
 
@@ -547,12 +415,6 @@ object SmartConnectManager {
                 delay(1000)
             }
 
-            // ── Быстрый путь: VIP Кэш (Auto Failover) ──────────────────────────────
-            if (checkVipCacheAndConnect(context, isStartup = false)) {
-                NotificationManager.cancelFailoverNotification()
-                return@withContext true
-            }
-
             sendStatus(context, context.getString(R.string.status_switching_server))
 
             val chunkedServers = buildProportionalChunks(filteredServers)
@@ -577,10 +439,6 @@ object SmartConnectManager {
                 }
 
                 if (nextBest != null) {
-                    val leftovers = results.filter { it.first != nextBest.first && it.third < Long.MAX_VALUE }
-                    if (leftovers.isNotEmpty()) {
-                        NodeTesterManager.verifyAndCacheLeftovers(context.applicationContext, leftovers)
-                    }
                     break
                 }
                 GeekModeLogger.log("SmartConnect", "No working server found in chunk ${index + 1}, moving to next chunk...")

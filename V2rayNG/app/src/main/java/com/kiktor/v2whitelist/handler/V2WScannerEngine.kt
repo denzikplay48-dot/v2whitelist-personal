@@ -131,16 +131,6 @@ object V2WScannerEngine {
         }
 
         if (connected) {
-            // Drain the channel for any extra servers that succeeded before we stopped the scanner
-            val leftovers = mutableListOf<Triple<String, ProfileItem, Long>>()
-            while (true) {
-                val item = channel.tryReceive().getOrNull() ?: break
-                leftovers.add(item)
-            }
-            if (leftovers.isNotEmpty()) {
-                GeekModeLogger.log("SmartConnect", "v2w-core: found ${leftovers.size} leftover servers, sending to VIP cache verification")
-                NodeTesterManager.verifyAndCacheLeftovers(context.applicationContext, leftovers)
-            }
             return@coroutineScope true
         }
 

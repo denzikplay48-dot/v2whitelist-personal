@@ -467,9 +467,6 @@
     <string name="location_filter_empty">موقعیتی در دسترس نیست. اشتراک را به‌روزرسانی کنید.</string>
     <string name="location_filter_server_count">سرورها: %d</string>
     <string name="geek_mode_btn_ping_test">تست پینگ</string>
-    <string name="geek_mode_btn_find_vip">یافتن VIP</string>
-    <string name="geek_mode_btn_ping_vip">پینگ VIP</string>
-    <string name="geek_mode_vip_cache">حافظه پنهان VIP:</string>
     <string name="geek_mode_logs_title">لاگ‌ها (زنده):</string>
     <string name="geek_mode_no_server">هیچ سروری انتخاب نشده است</string>
     <string name="geek_mode_unknown_config">پیکربندی نامشخص</string>
@@ -590,17 +587,15 @@
     <string name="status_updating_subscription">در حال به‌روزرسانی لیست سرورها…</string>
     <string name="status_starting_smart_connect">در حال جستجوی بهترین سرور برای شما…</string>
     <string name="status_testing_servers">در حال بررسی سرعت سرورها…</string>
-    <string name="status_checking_vip_servers">اتصال سریع از طریق سرورهای برتر…</string>
     <string name="status_found_best">سرور عالی پیدا شد! در حال اتصال…</string>
     <string name="status_connecting_to">در حال اتصال به %s…</string>
-    <string name="status_using_cached_server">اتصال سریع به %s…</string>
     <string name="status_switching_server">انتخاب سرور دیگر…</string>
     <string name="status_no_servers">سروری یافت نشد. لیست را به‌روزرسانی کنید.</string>
     <string name="status_no_internet">اینترنت متصل نیست.</string>
     <string name="status_waiting_for_network">دسترسی مستقیم به اینترنت وجود ندارد. در انتظار شبکه…</string>
     <string name="status_jamming_detected">احتمال اختلال شدید شبکه، در حال جستجوی سریع‌ترین سرورها…</string>
     <string name="status_updating_via_vpn">در حال به‌روزرسانی اشتراک از طریق VPN فعال…</string>
-    <string name="app_name">ПроБел</string>
+    <string name="app_name">ПроБел-D</string>
     <string name="notification_action_pause">مکث</string>
     <string name="notification_action_resume">ادامه</string>
     <string name="notification_content_paused">سرویس موقتاً متوقف شده است</string>
@@ -617,8 +612,6 @@
     <string name="summary_pref_check_update_pre_release">امکان دانلود نسخه‌های آزمایشی و تست</string>
     <string name="title_pref_custom_user_agent">User-Agent سفارشی</string>
     <string name="summary_pref_custom_user_agent">تنظیم User-Agent برای دانلود اشتراک‌ها</string>
-    <string name="title_pref_vip_cache_limit">محدودیت حافظه موقت سرورهای VIP</string>
-    <string name="summary_pref_vip_cache_limit">حداکثر تعداد سرورهای برتر برای اتصال فوق سریع</string>
     <string name="title_auto_failover_settings">تغییر خودکار سرور (Failover)</string>
     <string name="title_pref_auto_failover">تغییر خودکار در صورت قطعی</string>
     <string name="summary_pref_auto_failover">اتصال خودکار به سرور دیگر در صورت از کار افتادن سرور فعلی</string>

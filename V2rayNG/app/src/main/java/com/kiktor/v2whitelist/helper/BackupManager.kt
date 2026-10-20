@@ -25,7 +25,8 @@ object BackupManager {
         com.kiktor.v2whitelist.AppConfig.PREF_IS_BOOTED,
         com.kiktor.v2whitelist.AppConfig.CACHE_SUBSCRIPTION_ID,
         com.kiktor.v2whitelist.AppConfig.CACHE_KEYWORD_FILTER,
-        com.kiktor.v2whitelist.AppConfig.PREF_VIP_CACHE,
+        com.kiktor.v2whitelist.AppConfig.LEGACY_PREF_VIP_CACHE,
+        com.kiktor.v2whitelist.AppConfig.PREF_FAILOVER_QUARANTINE_PROFILES,
         MmkvManager.KEY_BATTERY_ASKED
     )
 

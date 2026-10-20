@@ -60,7 +60,7 @@ class LocationFilterActivity : BaseActivity() {
                 getString(R.string.location_filter_mode_whitelist_hint)
             else
                 getString(R.string.location_filter_mode_exclude_hint)
-            com.kiktor.v2whitelist.handler.SmartConnectManager.cleanVipCacheForFilter()
+            com.kiktor.v2whitelist.handler.SmartConnectManager.clearSelectedServerIfFilteredOut()
         }
     }
 
@@ -110,7 +110,7 @@ class LocationFilterActivity : BaseActivity() {
                 currentSet.remove(emoji)
             }
             MmkvManager.encodeSettings(AppConfig.PREF_LOCATION_FILTER_SET, currentSet)
-            com.kiktor.v2whitelist.handler.SmartConnectManager.cleanVipCacheForFilter()
+            com.kiktor.v2whitelist.handler.SmartConnectManager.clearSelectedServerIfFilteredOut()
         }
 
         rvLocations.layoutManager = LinearLayoutManager(this)

@@ -50,6 +50,8 @@ object AppConfig {
     const val PREF_AUTO_FAILOVER = "pref_auto_failover"
     const val PREF_SMART_FAILOVER_ENABLED = "pref_smart_failover_enabled"
     const val PREF_AUTO_FAILOVER_INTERVAL_SEC = "pref_auto_failover_interval_sec"
+    const val PREF_AUTO_FAILOVER_QUARANTINE_MINUTES = "pref_auto_failover_quarantine_minutes"
+    const val PREF_FAILOVER_QUARANTINE_PROFILES = "pref_failover_quarantine_profiles"
     const val PREF_SMART_FAILOVER_THRESHOLD_KBPS = "pref_smart_failover_threshold_kbps"
     const val PREF_SMART_FAILOVER_STALL_SEC = "pref_smart_failover_stall_sec"
     const val PREF_NETWORK_CHECK_ENABLED = "pref_network_check_enabled"
@@ -170,7 +172,7 @@ object AppConfig {
     /** Cache keys. */
     const val CACHE_SUBSCRIPTION_ID = "cache_subscription_id"
     const val CACHE_KEYWORD_FILTER = "cache_keyword_filter"
-    const val PREF_VIP_CACHE = "pref_vip_cache_list"
+    const val LEGACY_PREF_VIP_CACHE = "pref_vip_cache_list"
 
     /** Кэш последнего подключённого сервера.
      *  Если с последнего включения VPN прошло меньше LAST_SERVER_CACHE_TTL_MS,

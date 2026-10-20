@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Smart Stall Detection: пассивный мониторинг трафика раз в секунду через [onTrafficSample]
  *   Если есть исходящий трафик (> 1.5 KB/s) но входящий упал ниже порога → экспресс-проверка → failover
  *
- * Не использует квантинование — просто выбирает следующий сервер из VIP кэша или списка.
+ * После автоматического переключения не возвращается к отказавшему профилю в течение заданного карантина.
  */
 object SmartFailoverManager {
 
@@ -207,6 +207,12 @@ object SmartFailoverManager {
                     GeekModeLogger.log("Failover", "Cannot failover: no alternative server found")
                     return
                 }
+                if (currentGuid != null && MmkvManager.quarantineProfileForAutoFailover(currentGuid)) {
+                    GeekModeLogger.log(
+                        "Failover",
+                        "Quarantined failed profile $currentGuid for ${MmkvManager.getAutoFailoverQuarantineMinutes()} minutes"
+                    )
+                }
                 val profile = MmkvManager.decodeServerConfig(nextGuid)
                 val remarks = profile?.remarks ?: nextGuid
                 GeekModeLogger.log("Failover", "Hot-swapping from $currentGuid → $nextGuid ($remarks)")
@@ -219,30 +225,13 @@ object SmartFailoverManager {
         }
     }
 
-    /**
-     * Выбор следующего сервера:
-     * 1. Приоритет VIP Cache (быстрый путь)
-     * 2. Следующий по порядку в основном списке
-     */
+    /** Выбирает следующий доступный профиль, пропуская карантинные. */
     fun selectNextServer(currentGuid: String?): String? {
         val allServers = MmkvManager.decodeServerList()
         if (allServers.size <= 1) return null
 
         val filteredPairs = SmartConnectManager.filterServers(allServers, excludeGuid = currentGuid)
         if (filteredPairs.isEmpty()) return null
-        val filteredGuids = filteredPairs.map { it.first }.toSet()
-
-        // 1. VIP Cache
-        val vipGuids = MmkvManager.getVipCache()
-        for (guid in vipGuids) {
-            if (guid == currentGuid) continue
-            if (!filteredGuids.contains(guid)) continue
-            val profile = MmkvManager.decodeServerConfig(guid) ?: continue
-            GeekModeLogger.log("Failover", "Selected next server from VIP cache: ${profile.remarks} ($guid)")
-            return guid
-        }
-
-        // 2. Следующий по кругу из отфильтрованного списка
         val currentIndex = if (currentGuid != null) filteredPairs.indexOfFirst { it.first == currentGuid } else -1
         val startIndex = if (currentIndex != -1) (currentIndex + 1) % filteredPairs.size else 0
         val selected = filteredPairs[startIndex]

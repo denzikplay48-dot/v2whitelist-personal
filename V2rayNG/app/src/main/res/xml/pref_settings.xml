@@ -140,6 +140,14 @@
             android:summary="@string/summary_pref_auto_failover_interval"
             android:title="@string/title_pref_auto_failover_interval" />
 
+        <EditTextPreference
+            android:dependency="pref_auto_failover"
+            android:inputType="number"
+            android:key="pref_auto_failover_quarantine_minutes"
+            android:defaultValue="45"
+            android:summary="@string/summary_pref_auto_failover_quarantine_minutes"
+            android:title="@string/title_pref_auto_failover_quarantine_minutes" />
+
         <!-- Smart Failover (пассивный мониторинг трафика) -->
         <CheckBoxPreference
             android:dependency="pref_auto_failover"

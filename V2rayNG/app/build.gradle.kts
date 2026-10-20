@@ -11,9 +11,9 @@ fun getVersionName(project: Project): String {
     return try {
         val process = ProcessBuilder("git", "describe", "--tags", "--abbrev=0", "--match", "v*").start()
         val version = process.inputStream.bufferedReader().readText().trim().removePrefix("v")
-        if (version.isEmpty()) "1.0.4" else version
+        if (version.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) version else "1.2.7.1"
     } catch (e: Exception) {
-        "1.0.4"
+        "1.2.7.1"
     }
 }
 

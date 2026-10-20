@@ -623,7 +623,7 @@ object SubscriptionHelper {
         // Поэтому нужно запомнить identity серверов (server+port+remarks),
         // чтобы потом найти их новые GUID-ы и ремаппить кэши.
         // ══════════════════════════════════════════════════════════════════════
-        data class ServerIdentity(val server: String?, val port: String?, val remarks: String)
+        data class ServerIdentity(val server: String?, val port: String?, val remarks: String, val quarantineUntil: Long? = null)
 
         val lastServerGuid = MmkvManager.getValidLastServer()
         val lastServerIdentity = lastServerGuid?.let { guid ->
@@ -632,15 +632,10 @@ object SubscriptionHelper {
             }
         }
 
-        val vipGuids = MmkvManager.getVipCache()
-        val vipIdentities = vipGuids.mapNotNull { guid ->
+        val quarantineIdentities = MmkvManager.getActiveFailoverQuarantines().mapNotNull { (guid, expiresAt) ->
             MmkvManager.decodeServerConfig(guid)?.let { p ->
-                ServerIdentity(p.server, p.serverPort, p.remarks)
+                ServerIdentity(p.server, p.serverPort, p.remarks, expiresAt)
             }
-        }
-
-        if (vipIdentities.isNotEmpty()) {
-            Log.i(AppConfig.TAG, "updateSubscription: снимок VIP-кэша: ${vipIdentities.size} серверов (${vipIdentities.joinToString { it.remarks }})")
         }
 
         val candidateSocksPort = SettingsManager.getSocksPort()
@@ -763,11 +758,11 @@ object SubscriptionHelper {
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        // РЕМАППИНГ КЭШЕЙ ПОСЛЕ ОБНОВЛЕНИЯ
+        // РЕМАППИНГ СОСТОЯНИЯ ПРОФИЛЕЙ ПОСЛЕ ОБНОВЛЕНИЯ
         // Строим индекс identity → newGuid для быстрого поиска.
         // MMKV — memory-mapped, декодинг 300+ профилей занимает ~20мс.
         // ══════════════════════════════════════════════════════════════════════
-        if (lastServerIdentity != null || vipIdentities.isNotEmpty()) {
+        if (lastServerIdentity != null || quarantineIdentities.isNotEmpty()) {
             val updatedServers = MmkvManager.decodeServerList()
             val identityIndex = mutableMapOf<String, String>() // "server|port|remarks" → newGuid
             for (guid in updatedServers) {
@@ -791,19 +786,14 @@ object SubscriptionHelper {
                 }
             }
 
-            // ── Ремаппим VIP-кэш ──
-            if (vipIdentities.isNotEmpty()) {
-                val remapped = vipIdentities.mapNotNull { id ->
+            // ── Сохраняем карантин после смены GUID профилей ──
+            if (quarantineIdentities.isNotEmpty()) {
+                val remapped = quarantineIdentities.mapNotNull { id ->
+                    val expiresAt = id.quarantineUntil ?: return@mapNotNull null
                     val key = "${id.server}|${id.port}|${id.remarks}"
-                    identityIndex[key]
-                }
-                if (remapped.isNotEmpty()) {
-                    MmkvManager.replaceVipCache(remapped)
-                    Log.i(AppConfig.TAG, "updateSubscription: VIP-кэш ремаппирован: ${remapped.size}/${vipIdentities.size} серверов сохранено")
-                } else {
-                    MmkvManager.clearVipCache()
-                    Log.w(AppConfig.TAG, "updateSubscription: все VIP-серверы исчезли после обновления, кэш очищен")
-                }
+                    identityIndex[key]?.let { it to expiresAt }
+                }.toMap()
+                MmkvManager.replaceFailoverQuarantines(remapped)
             }
         }
 

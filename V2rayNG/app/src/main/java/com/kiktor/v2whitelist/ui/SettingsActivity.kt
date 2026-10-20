@@ -110,6 +110,24 @@ class SettingsActivity : BaseActivity() {
 
             initPreferenceSummaries()
 
+            findPreference<EditTextPreference>(AppConfig.PREF_AUTO_FAILOVER_QUARANTINE_MINUTES)?.let { preference ->
+                fun updateSummary(minutes: Int) {
+                    preference.summary = getString(R.string.summary_pref_auto_failover_quarantine_minutes, minutes)
+                }
+
+                updateSummary(MmkvManager.getAutoFailoverQuarantineMinutes())
+                preference.setOnPreferenceChangeListener { _, newValue ->
+                    val minutes = newValue.toString().toIntOrNull()
+                    if (minutes == null || minutes !in 0..10_080) {
+                        requireContext().toast(getString(R.string.error_failover_quarantine_minutes_range))
+                        false
+                    } else {
+                        updateSummary(minutes)
+                        true
+                    }
+                }
+            }
+
             localDns?.setOnPreferenceChangeListener { _, any ->
                 updateLocalDns(any as Boolean)
                 true

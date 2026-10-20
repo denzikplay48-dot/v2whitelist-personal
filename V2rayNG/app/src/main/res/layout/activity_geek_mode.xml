@@ -39,51 +39,10 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_force_ping"
                 style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="4dp"
                 android:text="@string/geek_mode_btn_ping_test" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_find_more_vip"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/geek_mode_btn_find_vip" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_ping_vip"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:text="@string/geek_mode_btn_ping_vip" />
         </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/geek_mode_vip_cache"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
-
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:scrollbars="none"
-            android:layout_marginBottom="24dp">
-
-            <LinearLayout
-                android:id="@+id/vip_container"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
 
         <TextView
             android:layout_width="match_parent"

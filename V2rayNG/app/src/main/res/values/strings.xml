@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">ПроБел</string>
-    <string name="app_display_name" translatable="false">ПроБел</string>
-    <string name="app_widget_name">ПроБел</string>
-    <string name="app_tile_name">ПроБел</string>
+    <string name="app_name" translatable="false">ПроБел-D</string>
+    <string name="app_display_name" translatable="false">ПроБел-D</string>
+    <string name="app_widget_name">ПроБел-D</string>
+    <string name="app_tile_name">ПроБел-D</string>
     <string name="app_tile_first_use">First use of this feature, please use the app to add server</string>
     <string name="title_pref_add_qs_tile">Quick settings tile</string>
     <string name="summary_pref_add_qs_tile">Add ProBel tile to notification panel for quick toggle</string>
@@ -31,10 +31,8 @@
 
     <string name="status_starting_smart_connect">Looking for the best server…</string>
     <string name="status_testing_servers">Testing server speeds…</string>
-    <string name="status_checking_vip_servers">Fast checking top VIP servers…</string>
     <string name="status_found_best">Found a great server! Connecting…</string>
     <string name="status_connecting_to">Connecting to %s…</string>
-    <string name="status_using_cached_server">Fast connecting to %s…</string>
     <string name="status_switching_server">Selecting another server…</string>
     <string name="status_updating_subscription">Updating server list…</string>
     <string name="status_no_servers">No servers found. Try updating the list.</string>
@@ -305,13 +303,14 @@
     <string name="summary_pref_use_hev_tunnel">When enabled, TUN will use hev-socks5-tunnel; otherwise, it will use xray-core.</string>
     <string name="title_pref_hev_tunnel_loglevel">Hev Tun Log Level</string>
     <string name="title_pref_hev_tunnel_rw_timeout">Hev Tun read/write timeout (seconds) (tcp,udp default 300,60)</string>
-    <string name="title_pref_vip_cache_limit">VIP Cache Limit</string>
-    <string name="summary_pref_vip_cache_limit">Maximum number of servers to keep in the VIP fast-connect cache</string>
     <string name="title_auto_failover_settings">Auto Failover Settings</string>
     <string name="title_pref_auto_failover">Auto Failover</string>
     <string name="summary_pref_auto_failover">Automatically switch to next server if current does not respond</string>
     <string name="title_pref_auto_failover_interval">Heartbeat Interval (seconds)</string>
     <string name="summary_pref_auto_failover_interval">Periodic check interval. Default: 30s</string>
+    <string name="title_pref_auto_failover_quarantine_minutes">Failed profile quarantine (minutes)</string>
+    <string name="summary_pref_auto_failover_quarantine_minutes">After automatic failover, skip the failed profile for %1$d minutes. Set 0 to disable; maximum 10080.</string>
+    <string name="error_failover_quarantine_minutes_range">Enter a value from 0 to 10080 minutes.</string>
     <string name="title_pref_smart_failover">Smart Failover (Beta)</string>
     <string name="summary_pref_smart_failover">Fast stall detection and network arbitration (ya.ru vs google.com) without long timeouts</string>
     <string name="title_pref_smart_failover_threshold">Throughput Degradation Threshold (KB/s)</string>
@@ -320,7 +319,7 @@
     <string name="summary_pref_smart_failover_stall">How many seconds traffic must stall before express probe triggers. Default: 3s</string>
     <string name="failover_notification_title">Server connection lost</string>
     <string name="failover_notification_content">Searching for a new server...</string>
-    <string name="title_v2whitelist_settings">ПроБел Features</string>
+    <string name="title_v2whitelist_settings">ПроБел-D Features</string>
 
     <string name="title_pref_chunk_size">Server chunk size</string>
     <string name="summary_pref_chunk_size">Number of servers to test in one batch (Default: 20)</string>
@@ -538,7 +537,7 @@
     <string name="title_location_filter">Filter</string>
     <string name="btn_label_filter">Filter</string>
     <string name="btn_label_share">Share</string>
-    <string name="share_app_text">ПроБел (v2Whitelist) — a client for bypassing blocks and mobile internet whitelists. Free, no ads, and no tracking! Direct download link:\n%1$s</string>
+    <string name="share_app_text">ПроБел-D — a client for bypassing blocks and mobile internet whitelists. Free, no ads, and no tracking! Direct download link:\n%1$s</string>
     <string name="location_filter_mode_title">Filter Mode</string>
     <string name="location_filter_mode_exclude">Exclude</string>
     <string name="location_filter_mode_whitelist">Whitelist</string>
@@ -551,9 +550,6 @@
 
     <!-- Geek Mode -->
     <string name="geek_mode_btn_ping_test">Ping Test</string>
-    <string name="geek_mode_btn_find_vip">Find VIP</string>
-    <string name="geek_mode_btn_ping_vip">Ping VIP</string>
-    <string name="geek_mode_vip_cache">VIP Cache:</string>
     <string name="geek_mode_logs_title">Logs (Real-time):</string>
     <string name="geek_mode_no_server">No server selected</string>
     <string name="geek_mode_unknown_config">Unknown config</string>
@@ -655,7 +651,7 @@
     <string name="update_failed_download">Failed to download APK</string>
 
     <!-- About Screen & Dialog -->
-    <string name="about_app_description">ПроБел is a lightweight and optimized client designed to bypass network censorship, throttling, and whitelist-only restrictions, providing fast and uninterrupted access.</string>
+    <string name="about_app_description">ПроБел-D is a lightweight and optimized client designed to bypass network censorship, throttling, and whitelist-only restrictions, providing fast and uninterrupted access.</string>
     <string name="about_app_license">Project License: GNU GPLv3</string>
     <string name="about_app_tg_channel">Telegram Channel</string>
     <string name="about_app_source_code">Source Code (GitHub):</string>
@@ -663,7 +659,7 @@
     <string name="about_version_format">Version: v%s</string>
 
     <!-- Onboarding / Setup Wizard -->
-    <string name="onboarding_purpose_title">What do you need ПроБел for?</string>
+    <string name="onboarding_purpose_title">What do you need ПроБел-D for?</string>
     <string name="onboarding_purpose_subtitle">Choose your primary scenario. The app will automatically configure suitable subscriptions (you can always adjust them in Settings).</string>
     <string name="scenario_auto_title">0. Auto (Recommended)</string>
     <string name="scenario_auto_desc">Smart network adaptation: fast standard VPN on Wi-Fi and regular networks, automatic switch to Whitelist bypass during network jamming and throttling.</string>
