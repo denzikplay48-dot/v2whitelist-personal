@@ -1,6 +1,7 @@
 name: Android CI Build
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -117,3 +118,10 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
       working-directory: V2rayNG
+
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: v2whitelist-debug-apk
+        path: V2rayNG/app/build/outputs/apk/**/*.apk
+        if-no-files-found: error
