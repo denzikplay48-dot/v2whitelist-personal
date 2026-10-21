@@ -547,7 +547,7 @@ object V2rayConfigManager {
             if (domainSplitEnabled == true) {
                 val directDomainsStr = MmkvManager.decodeSettingsString(AppConfig.PREF_DIRECT_DOMAIN_LIST)
                 if (!directDomainsStr.isNullOrBlank()) {
-                    val domains = directDomainsStr.split(",")
+                    val domains = directDomainsStr.split(Regex("[,\\r\\n]+"))
                         .map { it.trim() }
                         .filter { it.isNotEmpty() }
                         .map { if (it.startsWith("domain:") || it.startsWith("geosite:") || it.startsWith("full:") || it.startsWith("keyword:")) it else "domain:$it" }

@@ -684,7 +684,8 @@
     <string name="title_pref_domain_split_tunneling">Сплит-туннелинг по доменам</string>
     <string name="summary_pref_domain_split_tunneling">Исключить отдельные домены из туннеля VPN (прямой доступ). Отключено по умолчанию.</string>
     <string name="title_pref_domain_split_tunneling_settings">Управление исключениями</string>
-    <string name="summary_pref_domain_split_tunneling_settings">Добавить домены, которые должны обходить VPN</string>
+    <string name="summary_pref_domain_split_tunneling_settings">Добавляйте домены через запятую или указывайте каждый с новой строки.</string>
+    <string name="hint_pref_domain_split_tunneling_settings">example.com, sub.example.com\ngeosite:category-ru</string>
     <string name="title_pref_domain_geo_files">Geo файлы</string>
     <string name="summary_pref_domain_geo_files">Скачать geosite.dat / geoip.dat по ссылке или с GitHub для расширенных правил geosite:</string>
     <!-- Заголовок раздела проверки сети -->
