@@ -336,6 +336,12 @@ object SettingsManager {
         return vpnDns.split(",").filter { Utils.isPureIpAddress(it) }
     }
 
+    fun getAutoFailoverMaxPingMillis(): Long =
+        MmkvManager.decodeSettingsString(AppConfig.PREF_AUTO_FAILOVER_MAX_PING_MS, "1500")
+            ?.toLongOrNull()
+            ?.coerceIn(100L, 3_000L)
+            ?: 1_500L
+
     /**
      * Get delay test URL.
      * @param second Whether to use the second URL.

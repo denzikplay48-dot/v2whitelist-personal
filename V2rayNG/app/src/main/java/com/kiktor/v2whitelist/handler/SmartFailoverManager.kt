@@ -40,15 +40,20 @@ object SmartFailoverManager {
         val delayMillis: Long,
         val maxAcceptedDelayMillis: Long,
         val exitIpAvailable: Boolean,
+        val exitIpCountry: String?,
+        val requireNonRussianExit: Boolean,
         val fallbackEndpointAvailable: Boolean? = null
     ) {
         val delayProbePassed: Boolean
             get() = delayMillis in 1L..maxAcceptedDelayMillis
 
-        val isHealthy: Boolean
-            get() = delayProbePassed || exitIpAvailable || fallbackEndpointAvailable == true
+        val exitIpAccepted: Boolean
+            get() = exitIpAvailable && (!requireNonRussianExit || ServiceAppsRoutingManager.isKnownNonRussianCountry(exitIpCountry))
 
-        fun summary(): String = "delay=$delayProbePassed(${delayMillis}ms), exitIp=$exitIpAvailable, fallback=$fallbackEndpointAvailable"
+        val isHealthy: Boolean
+            get() = delayProbePassed && exitIpAccepted
+
+        fun summary(): String = "ping=$delayProbePassed(${delayMillis}ms/$maxAcceptedDelayMillis), exitIp=$exitIpAvailable, country=${exitIpCountry ?: "unknown"}, countryAccepted=$exitIpAccepted, fallback=$fallbackEndpointAvailable"
     }
 
     enum class PhysicalNetworkState {
@@ -71,8 +76,10 @@ object SmartFailoverManager {
      * Запускает фоновый мониторинг доступности сервера.
      */
     fun startFailoverMonitor(service: Service) {
-        if (!MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false)) {
-            Log.d(AppConfig.TAG, "Failover: disabled in preferences")
+        val enabledByPreference = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false)
+        val requiredForServiceApps = ServiceAppsRoutingManager.requiresNonRussianExit()
+        if (!enabledByPreference && !requiredForServiceApps) {
+            Log.d(AppConfig.TAG, "Failover: disabled in preferences and not required by service-app routing")
             quickProbeOnNextStart.set(false)
             return
         }
@@ -176,11 +183,7 @@ object SmartFailoverManager {
                 } else {
                     val delay = health.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                     AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
-                    if (!health.exitIpAvailable || health.fallbackEndpointAvailable == true) {
-                        GeekModeLogger.log("Failover", "Express tunnel probes passed (${health.summary()}); keeping the current profile.")
-                    } else {
-                        GeekModeLogger.log("Failover", "Express probe passed ($delay ms). Tunnel is alive, false alarm.")
-                    }
+                    GeekModeLogger.log("Failover", "Express tunnel probes passed (${health.summary()}); keeping the current profile.")
                 }
             } finally {
                 isProbing.set(false)
@@ -201,7 +204,7 @@ object SmartFailoverManager {
                 val retryHealth = testTunnelHealth(3000L)
                 if (!retryHealth.isHealthy) {
                     GeekModeLogger.log("Failover", "Heartbeat retry failed (${retryHealth.summary()}). Initiating failover...")
-                    handleServerFailure(service, "Heartbeat tunnel and exit IP probes failed twice")
+                    handleServerFailure(service, "Heartbeat health check failed twice: ${retryHealth.summary()}")
                 } else {
                     val retryDelay = retryHealth.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                     AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), retryDelay)
@@ -210,9 +213,7 @@ object SmartFailoverManager {
             } else {
                 val delay = health.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                 AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
-                if (!health.exitIpAvailable || health.fallbackEndpointAvailable == true) {
-                    GeekModeLogger.log("Failover", "Heartbeat tunnel probes passed (${health.summary()}); keeping the current profile.")
-                }
+                GeekModeLogger.log("Failover", "Heartbeat tunnel probes passed (${health.summary()}); keeping the current profile.")
             }
         } finally {
             isProbing.set(false)
@@ -234,33 +235,33 @@ object SmartFailoverManager {
         }
     }
 
-    /**
-     * Checks the configured Xray delay probe and the Exit IP service in parallel.
-     * If both fail, a separate provider is checked through the active SOCKS proxy.
-     * One reachable path is enough to avoid switching because a single endpoint can be unavailable.
-     */
+    /** The active profile is healthy only when ping and exit-IP checks both pass. */
     private suspend fun testTunnelHealth(timeoutMs: Long): TunnelHealth = kotlinx.coroutines.coroutineScope {
-        val timeout = timeoutMs.coerceIn(1000L, 5000L).toInt()
-        val maxAcceptedDelay = if (timeoutMs <= 2000L) 3000L else 5000L
-        val delayProbe = async(Dispatchers.IO) { testTunnelDelay(timeoutMs) }
+        val maxAcceptedDelay = SettingsManager.getAutoFailoverMaxPingMillis()
+        val timeout = maxOf(timeoutMs, maxAcceptedDelay + 500L).coerceIn(1000L, 6000L).toInt()
+        val delayProbe = async(Dispatchers.IO) { testTunnelDelay(timeout.toLong()) }
         val exitIpProbe = async(Dispatchers.IO) {
             try {
-                !SpeedtestManager.getRemoteIPInfo(timeout).isNullOrBlank()
+                SpeedtestManager.getRemoteIPDetails(timeout)
             } catch (_: Exception) {
-                false
+                null
             }
         }
 
         val delayMillis = delayProbe.await()
-        val exitIpAvailable = exitIpProbe.await()
+        val exitIp = exitIpProbe.await()
+        val exitIpAvailable = exitIp != null
+        val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExit()
         val delayProbePassed = delayMillis in 1L..maxAcceptedDelay
-        if (delayProbePassed || exitIpAvailable) {
-            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable)
+        val exitCountryAccepted = exitIpAvailable &&
+            (!requireNonRussianExit || ServiceAppsRoutingManager.isKnownNonRussianCountry(exitIp?.country))
+        if (delayProbePassed && exitCountryAccepted) {
+            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable, exitIp?.country, requireNonRussianExit)
         } else {
             val fallbackAvailable = withContext(Dispatchers.IO) {
                 SpeedtestManager.isUrlReachableViaActiveProxy(FALLBACK_TUNNEL_PROBE_URL, timeout)
             }
-            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable, fallbackAvailable)
+            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable, exitIp?.country, requireNonRussianExit, fallbackAvailable)
         }
     }
 
@@ -289,7 +290,24 @@ object SmartFailoverManager {
                     AutoBackupManager.recordBackupCheckFailure(currentGuid)
                 }
 
-                val nextGuid = AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true).firstOrNull()
+                val backupGuids = AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true)
+                var nextGuid: String? = null
+                for (candidateGuid in backupGuids) {
+                    if (NodeTesterManager.verifyProfile(
+                            service,
+                            candidateGuid,
+                            showStatus = false,
+                            customTimeoutMs = 5_500,
+                            skipSpeedCheck = true
+                        )
+                    ) {
+                        nextGuid = candidateGuid
+                        break
+                    }
+                    AutoBackupManager.recordBackupCheckFailure(candidateGuid)
+                    MmkvManager.quarantineProfileForAutoFailover(candidateGuid)
+                    GeekModeLogger.log("Failover", "Reserve profile $candidateGuid failed the exit-IP/ping eligibility check")
+                }
                 if (nextGuid == null) {
                     GeekModeLogger.log("Failover", "No verified reserve profile is ready; starting a full profile scan")
                     NotificationManager.showFailoverNotification()

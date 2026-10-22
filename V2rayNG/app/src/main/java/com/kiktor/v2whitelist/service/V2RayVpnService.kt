@@ -27,6 +27,7 @@ import com.kiktor.v2whitelist.contracts.ServiceControl
 import com.kiktor.v2whitelist.contracts.Tun2SocksControl
 import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.NotificationManager
+import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
 import com.kiktor.v2whitelist.handler.SettingsManager
 import com.kiktor.v2whitelist.handler.V2RayServiceManager
 import com.kiktor.v2whitelist.util.MyContextWrapper
@@ -363,6 +364,8 @@ class V2RayVpnService : VpnService(), ServiceControl {
      */
     private fun configurePerAppProxy(builder: Builder) {
         val selfPackageName = BuildConfig.APPLICATION_ID
+        val serviceApps = ServiceAppsRoutingManager.switchablePackages()
+        val serviceAppsToBypass = if (ServiceAppsRoutingManager.isBypassEnabled()) serviceApps else emptySet()
 
         // If per-app proxy is not enabled, or no apps are selected, we just disallow the self package
         // We DO NOT return here, because we still need to apply the bypassRuApps logic below!
@@ -381,20 +384,48 @@ class V2RayVpnService : VpnService(), ServiceControl {
         val bypassApps = MmkvManager.decodeSettingsBool(AppConfig.PREF_BYPASS_APPS)
         
         if (!skipCustomPerApp) {
-            // Handle the VPN service's own package according to the mode
-            if (bypassApps) apps?.add(selfPackageName) else apps?.remove(selfPackageName)
-
-            apps?.forEach {
-                try {
-                    if (bypassApps) {
-                        // In bypass mode, disallow the selected apps
+            if (bypassApps) {
+                // Merge both bypass lists so only one Android application-filter mode is used.
+                (apps.orEmpty() + serviceAppsToBypass + selfPackageName).forEach {
+                    try {
                         builder.addDisallowedApplication(it)
-                    } else {
-                        // In proxy mode, only allow the selected apps
-                        builder.addAllowedApplication(it)
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        Log.e(AppConfig.TAG, "Failed to exclude app from VPN: ${e.localizedMessage}", e)
+                    } catch (e: IllegalArgumentException) {
+                        Log.e(AppConfig.TAG, "Invalid app package in bypass list: $it", e)
                     }
+                }
+            } else {
+                // The permanent per-app selection stays intact. Only additional, switchable
+                // service apps are added when they are set to use VPN.
+                val allowedApps = apps.orEmpty().toMutableSet()
+                if (serviceAppsToBypass.isEmpty()) allowedApps.addAll(serviceApps)
+                allowedApps.remove(selfPackageName)
+                if (allowedApps.isEmpty()) {
+                    // An empty Android allow-list means "allow everything". Keep the VPN
+                    // app itself as a harmless sentinel so all other apps remain excluded.
+                    allowedApps.add(selfPackageName)
+                }
+                allowedApps.forEach {
+                    try {
+                        builder.addAllowedApplication(it)
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        Log.e(AppConfig.TAG, "Failed to allow app through VPN: ${e.localizedMessage}", e)
+                    } catch (e: IllegalArgumentException) {
+                        Log.e(AppConfig.TAG, "Invalid app package in VPN allow-list: $it", e)
+                    }
+                }
+            }
+        }
+
+        if (skipCustomPerApp) {
+            serviceAppsToBypass.forEach {
+                try {
+                    builder.addDisallowedApplication(it)
                 } catch (e: PackageManager.NameNotFoundException) {
-                    Log.e(AppConfig.TAG, "Failed to configure app in VPN: ${e.localizedMessage}", e)
+                    Log.e(AppConfig.TAG, "Failed to exclude service app from VPN: ${e.localizedMessage}", e)
+                } catch (e: IllegalArgumentException) {
+                    Log.e(AppConfig.TAG, "Invalid service app package in bypass list: $it", e)
                 }
             }
         }

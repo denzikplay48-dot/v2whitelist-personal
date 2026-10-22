@@ -225,6 +225,30 @@ object NodeTesterManager {
                 GeekModeLogger.log("NodeTester", "verifyProfile: traffic did not pass through server for $guid")
                 false
             } else {
+                val failoverEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false)
+                val serviceAppsVpnMode = ServiceAppsRoutingManager.requiresNonRussianExit()
+                val pingLimit = SettingsManager.getAutoFailoverMaxPingMillis()
+                if ((failoverEnabled || serviceAppsVpnMode) && elapsed > pingLimit) {
+                    GeekModeLogger.log("NodeTester", "verifyProfile: ping for $guid is ${elapsed}ms, above failover limit ${pingLimit}ms")
+                    return false
+                }
+
+                val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExit()
+                if (failoverEnabled || requireNonRussianExit) {
+                    val exitInfo = SpeedtestManager.getRemoteIPDetailsViaSocks(port, timeout)
+                    if (exitInfo == null) {
+                        GeekModeLogger.log("NodeTester", "verifyProfile: exit IP could not be fetched for $guid")
+                        return false
+                    }
+                    if (requireNonRussianExit && !ServiceAppsRoutingManager.isKnownNonRussianCountry(exitInfo.country)) {
+                        GeekModeLogger.log(
+                            "NodeTester",
+                            "verifyProfile: rejecting $guid because exit country is Russian or unknown (${exitInfo.country ?: "unknown"})"
+                        )
+                        return false
+                    }
+                }
+
                 GeekModeLogger.log("NodeTester", "verifyProfile: server $guid is working, latency = ${elapsed}ms")
                 MmkvManager.encodeServerTestDelayMillis(guid, elapsed)
 

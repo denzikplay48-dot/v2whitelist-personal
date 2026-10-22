@@ -23,10 +23,13 @@ import com.kiktor.v2whitelist.extension.toastError
 import com.kiktor.v2whitelist.extension.toastSuccess
 import com.kiktor.v2whitelist.handler.AngConfigManager
 import com.kiktor.v2whitelist.handler.MmkvManager
+import com.kiktor.v2whitelist.handler.NodeTesterManager
+import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
 import com.kiktor.v2whitelist.helper.SimpleItemTouchHelperCallback
 import com.kiktor.v2whitelist.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class GroupServerFragment : BaseFragment<FragmentGroupServerBinding>() {
     private val ownerActivity: MainActivity
@@ -222,18 +225,44 @@ class GroupServerFragment : BaseFragment<FragmentGroupServerBinding>() {
      */
     private fun setSelectServer(guid: String) {
         val selected = MmkvManager.getSelectServer()
-        if (guid != selected) {
-            MmkvManager.setSelectServer(guid)
-            // Save to SmartConnect cache so the giant connect button respects manual selection
-            MmkvManager.saveLastConnectedServer(guid)
-            
-            val fromPosition = mainViewModel.getPosition(selected.orEmpty())
-            val toPosition = mainViewModel.getPosition(guid)
-            adapter.setSelectServer(fromPosition, toPosition)
+        if (guid == selected) return
 
-            if (mainViewModel.isRunning.value == true) {
-                ownerActivity.restartV2Ray()
+        val requireVerification = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
+            ServiceAppsRoutingManager.requiresNonRussianExit()
+        if (requireVerification) {
+            val appContext = requireContext().applicationContext
+            lifecycleScope.launch {
+                val verified = withContext(Dispatchers.IO) {
+                    NodeTesterManager.verifyProfile(
+                        appContext,
+                        guid,
+                        showStatus = false,
+                        customTimeoutMs = 5_500,
+                        skipSpeedCheck = true
+                    )
+                }
+                if (verified) {
+                    applySelectedServer(guid, selected)
+                } else {
+                    ownerActivity.toast(R.string.service_apps_profile_rejected)
+                }
             }
+        } else {
+            applySelectedServer(guid, selected)
+        }
+    }
+
+    private fun applySelectedServer(guid: String, previousGuid: String?) {
+        MmkvManager.setSelectServer(guid)
+        // Save to SmartConnect cache so the giant connect button respects manual selection
+        MmkvManager.saveLastConnectedServer(guid)
+
+        val fromPosition = mainViewModel.getPosition(previousGuid.orEmpty())
+        val toPosition = mainViewModel.getPosition(guid)
+        adapter.setSelectServer(fromPosition, toPosition)
+
+        if (mainViewModel.isRunning.value == true) {
+            ownerActivity.restartV2Ray()
         }
     }
 

@@ -95,7 +95,7 @@ class PerAppProxyActivity : BaseActivity() {
                 }
 
                 appsAll = apps
-                adapter = PerAppProxyAdapter(apps, viewModel)
+                adapter = PerAppProxyAdapter(apps, viewModel::contains, viewModel::toggle)
                 binding.recyclerView.adapter = adapter
 
             } catch (e: Exception) {
@@ -329,7 +329,7 @@ class PerAppProxyActivity : BaseActivity() {
             }
         }
 
-        adapter = PerAppProxyAdapter(apps, adapter?.viewModel ?: viewModel)
+        adapter = PerAppProxyAdapter(apps, viewModel::contains, viewModel::toggle)
         binding.recyclerView.adapter = adapter
         refreshData()
         return true

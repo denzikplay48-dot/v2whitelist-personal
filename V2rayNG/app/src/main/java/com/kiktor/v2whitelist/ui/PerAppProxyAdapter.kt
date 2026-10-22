@@ -6,11 +6,11 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.kiktor.v2whitelist.databinding.ItemRecyclerBypassListBinding
 import com.kiktor.v2whitelist.dto.AppInfo
-import com.kiktor.v2whitelist.viewmodel.PerAppProxyViewModel
 
 class PerAppProxyAdapter(
     val apps: List<AppInfo>,
-    val viewModel: PerAppProxyViewModel
+    private val isSelected: (String) -> Boolean,
+    private val onToggle: (String) -> Unit
 ) :RecyclerView.Adapter<PerAppProxyAdapter.BaseViewHolder>() {
 
     companion object {
@@ -63,15 +63,15 @@ class PerAppProxyAdapter(
             }
 
             itemBypassBinding.packageName.text = appInfo.packageName
-            itemBypassBinding.checkBox.isChecked = viewModel.contains(appInfo.packageName)
+            itemBypassBinding.checkBox.isChecked = isSelected(appInfo.packageName)
 
             itemView.setOnClickListener(this)
         }
 
         override fun onClick(v: View?) {
             val packageName = appInfo.packageName
-            viewModel.toggle(packageName)
-            itemBypassBinding.checkBox.isChecked = viewModel.contains(packageName)
+            onToggle(packageName)
+            itemBypassBinding.checkBox.isChecked = isSelected(packageName)
         }
     }
 }

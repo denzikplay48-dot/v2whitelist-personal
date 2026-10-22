@@ -148,6 +148,13 @@
             android:summary="@string/summary_pref_auto_failover_quarantine_minutes"
             android:title="@string/title_pref_auto_failover_quarantine_minutes" />
 
+        <EditTextPreference
+            android:inputType="number"
+            android:key="pref_auto_failover_max_ping_ms"
+            android:defaultValue="1500"
+            android:summary="@string/summary_pref_auto_failover_max_ping"
+            android:title="@string/title_pref_auto_failover_max_ping" />
+
         <!-- Smart Failover (пассивный мониторинг трафика) -->
         <CheckBoxPreference
             android:dependency="pref_auto_failover"
@@ -313,6 +320,11 @@
             android:key="pref_per_app_proxy_settings"
             android:summary="@string/summary_pref_per_app_proxy_settings"
             android:title="@string/title_pref_per_app_proxy_settings" />
+
+        <Preference
+            android:key="pref_service_apps_settings"
+            android:summary="@string/summary_service_apps_settings"
+            android:title="@string/title_service_apps_settings" />
 
         <!-- Domain-based split tunneling — отключено по умолчанию, гранулярная настройка -->
         <CheckBoxPreference

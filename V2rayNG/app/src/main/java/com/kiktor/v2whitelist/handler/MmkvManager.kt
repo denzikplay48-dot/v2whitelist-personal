@@ -815,6 +815,7 @@ object MmkvManager {
         AppConfig.PREF_SNIFFING_ENABLED,
         AppConfig.PREF_ROUTE_ONLY_ENABLED,
         AppConfig.PREF_PER_APP_PROXY,
+        AppConfig.PREF_SERVICE_APPS_BYPASS,
         AppConfig.PREF_BYPASS_RU_APPS,
         AppConfig.PREF_BYPASS_APPS,
         AppConfig.PREF_LOCAL_DNS_ENABLED,
@@ -855,6 +856,7 @@ object MmkvManager {
 
     private val STRING_SET_SETTINGS_KEYS: Set<String> = setOf(
         AppConfig.PREF_PER_APP_PROXY_SET,
+        AppConfig.PREF_SERVICE_APPS_SET,
         AppConfig.PREF_LOCATION_FILTER_SET
     )
 

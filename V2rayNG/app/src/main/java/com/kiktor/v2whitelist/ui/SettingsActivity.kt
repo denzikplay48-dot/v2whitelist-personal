@@ -128,6 +128,24 @@ class SettingsActivity : BaseActivity() {
                 }
             }
 
+            findPreference<EditTextPreference>(AppConfig.PREF_AUTO_FAILOVER_MAX_PING_MS)?.let { preference ->
+                fun updateSummary(milliseconds: Long) {
+                    preference.summary = getString(R.string.summary_pref_auto_failover_max_ping, milliseconds)
+                }
+
+                updateSummary(SettingsManager.getAutoFailoverMaxPingMillis())
+                preference.setOnPreferenceChangeListener { _, newValue ->
+                    val milliseconds = newValue.toString().toLongOrNull()
+                    if (milliseconds == null || milliseconds !in 100L..3_000L) {
+                        requireContext().toast(getString(R.string.error_failover_max_ping_range))
+                        false
+                    } else {
+                        updateSummary(milliseconds)
+                        true
+                    }
+                }
+            }
+
             localDns?.setOnPreferenceChangeListener { _, any ->
                 updateLocalDns(any as Boolean)
                 true
@@ -212,6 +230,10 @@ class SettingsActivity : BaseActivity() {
             }
             findPreference<androidx.preference.Preference>("pref_per_app_proxy_settings")?.setOnPreferenceClickListener {
                 startActivity(android.content.Intent(requireContext(), PerAppProxyActivity::class.java))
+                true
+            }
+            findPreference<androidx.preference.Preference>(AppConfig.PREF_SERVICE_APPS_SETTINGS)?.setOnPreferenceClickListener {
+                startActivity(android.content.Intent(requireContext(), ServiceAppsActivity::class.java))
                 true
             }
             findPreference<androidx.preference.Preference>("pref_domain_split_tunneling_settings")?.setOnPreferenceClickListener {

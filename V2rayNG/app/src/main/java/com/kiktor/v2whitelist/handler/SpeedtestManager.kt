@@ -23,6 +23,8 @@ import java.net.UnknownHostException
 
 object SpeedtestManager {
 
+    data class RemoteIpDetails(val ip: String, val country: String?)
+
     private val tcpTestingSockets = ArrayList<Socket?>()
 
     /**
@@ -229,12 +231,23 @@ object SpeedtestManager {
         return@withContext Pair(elapsed, result)
     }
 
-    fun getRemoteIPInfo(timeoutMs: Int = 5000): String? {
+    fun getRemoteIPDetails(timeoutMs: Int = 5000): RemoteIpDetails? {
         val url = MmkvManager.decodeSettingsString(AppConfig.PREF_IP_API_URL)
             .takeIf { !it.isNullOrBlank() } ?: AppConfig.IP_API_URL
 
         val isRunning = V2RayServiceManager.isRunning() == true
         val socksPort = if (isRunning) SettingsManager.getSocksPort() else 0
+
+        return getRemoteIPDetailsViaSocks(url, socksPort, timeoutMs)
+    }
+
+    fun getRemoteIPDetailsViaSocks(socksPort: Int, timeoutMs: Int = 5000): RemoteIpDetails? {
+        val url = MmkvManager.decodeSettingsString(AppConfig.PREF_IP_API_URL)
+            .takeIf { !it.isNullOrBlank() } ?: AppConfig.IP_API_URL
+        return getRemoteIPDetailsViaSocks(url, socksPort, timeoutMs)
+    }
+
+    private fun getRemoteIPDetailsViaSocks(url: String, socksPort: Int, timeoutMs: Int): RemoteIpDetails? {
 
         val content = if (socksPort > 0) {
             try {
@@ -259,12 +272,18 @@ object SpeedtestManager {
 
         val country = listOf(
             ipInfo.country_code,
-            ipInfo.country,
             ipInfo.countryCode,
-            ipInfo.location?.country_code
+            ipInfo.location?.country_code,
+            ipInfo.country,
+            ipInfo.country_name
         ).firstOrNull { !it.isNullOrBlank() }
 
-        return "(${country ?: "unknown"}) $ip"
+        return RemoteIpDetails(ip.trim(), country?.trim())
+    }
+
+    fun getRemoteIPInfo(timeoutMs: Int = 5000): String? {
+        val details = getRemoteIPDetails(timeoutMs) ?: return null
+        return "(${details.country ?: "unknown"}) ${details.ip}"
     }
 
     /** Checks an independent HTTP endpoint through the active local SOCKS proxy. */

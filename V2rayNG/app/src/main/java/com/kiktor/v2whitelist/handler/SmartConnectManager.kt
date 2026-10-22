@@ -329,7 +329,9 @@ object SmartConnectManager {
                 return@withContext false
             }
 
-            if (MmkvManager.isV2wCoreEnabled()) {
+            val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
+                ServiceAppsRoutingManager.requiresNonRussianExit()
+            if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
                 val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
                     context, 
                     filteredServers, 
@@ -351,7 +353,7 @@ object SmartConnectManager {
 
             val chunkedServers = buildProportionalChunks(filteredServers)
             var best: Triple<String, ProfileItem, Long>? = null
-            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true)
+            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true) || strictExitChecks
 
             for ((index, chunk) in chunkedServers.withIndex()) {
                 GeekModeLogger.log("SmartConnect", "Starting Smart Connect for chunk ${index + 1}/${chunkedServers.size} (${chunk.size} servers)")
@@ -441,7 +443,9 @@ object SmartConnectManager {
                 return@withContext false
             }
 
-            if (MmkvManager.isV2wCoreEnabled()) {
+            val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
+                ServiceAppsRoutingManager.requiresNonRussianExit()
+            if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
                 val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
                     context, 
                     filteredServers, 
@@ -464,7 +468,7 @@ object SmartConnectManager {
 
             val chunkedServers = buildProportionalChunks(filteredServers)
             var nextBest: Triple<String, ProfileItem, Long>? = null
-            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true)
+            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true) || strictExitChecks
 
             for ((index, chunk) in chunkedServers.withIndex()) {
                 GeekModeLogger.log("SmartConnect", "Switching server: testing chunk ${index + 1}/${chunkedServers.size} (${chunk.size} servers)")

@@ -102,6 +102,9 @@
             android:name=".ui.PerAppProxyActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.ServiceAppsActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.ScannerActivity"
             android:exported="false" />
         <activity
