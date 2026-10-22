@@ -248,6 +248,40 @@ object SmartConnectManager {
         }
     }
 
+    private suspend fun connectFromAutoBackup(
+        context: Context,
+        isStartup: Boolean,
+        excludeGuid: String? = null
+    ): Boolean {
+        val backupGuids = AutoBackupManager.getBackupGuids(excludeGuid, requireFresh = false)
+        if (backupGuids.isEmpty()) return false
+
+        GeekModeLogger.log("AutoBackup", "Checking ${backupGuids.size} saved reserve profile(s)")
+        for (guid in backupGuids) {
+            val profile = MmkvManager.decodeServerConfig(guid) ?: continue
+            sendStatus(context, context.getString(R.string.status_testing_servers))
+            val verified = NodeTesterManager.verifyProfile(
+                context,
+                guid,
+                showStatus = false,
+                customTimeoutMs = 3_000,
+                skipSpeedCheck = true
+            )
+            if (verified) {
+                val delay = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: Long.MAX_VALUE
+                AutoBackupManager.recordBackupCheckSuccess(guid, delay)
+                GeekModeLogger.log("AutoBackup", "Reserve profile passed startup check: ${profile.remarks} ($guid)")
+                connectToBest(context, Triple(guid, profile, delay), isStartup)
+                return true
+            }
+
+            AutoBackupManager.recordBackupCheckFailure(guid)
+            MmkvManager.quarantineProfileForAutoFailover(guid)
+            GeekModeLogger.log("AutoBackup", "Reserve profile failed check and was quarantined: ${profile.remarks} ($guid)")
+        }
+        return false
+    }
+
     /**
      * Logic for "Smart Connect" - filter, sort by RealPing, and connect to best.
      */
@@ -280,6 +314,12 @@ object SmartConnectManager {
             }
 
             SubscriptionHelper.checkAndSetupSubscription(context)
+
+            if (connectFromAutoBackup(context, isStartup = true)) {
+                NotificationManager.cancelFailoverNotification()
+                return@withContext true
+            }
+
             val allServers = MmkvManager.decodeServerList()
             val filteredServers = filterServers(allServers).shuffled()
 
@@ -388,6 +428,11 @@ object SmartConnectManager {
             NetworkManager.waitForInternet(context)
             
             val currentGuid = MmkvManager.getSelectServer()
+
+            if (connectFromAutoBackup(context, isStartup = false, excludeGuid = currentGuid)) {
+                NotificationManager.cancelFailoverNotification()
+                return@withContext true
+            }
             
             val allServers = MmkvManager.decodeServerList()
             val filteredServers = filterServers(allServers, excludeGuid = currentGuid).shuffled()

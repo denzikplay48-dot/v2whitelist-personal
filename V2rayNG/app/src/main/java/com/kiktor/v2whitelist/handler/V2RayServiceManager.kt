@@ -300,6 +300,7 @@ object V2RayServiceManager {
             MessageUtil.sendMsg2UI(service, AppConfig.MSG_STATE_START_SUCCESS, "")
             NotificationManager.startSpeedNotification(currentConfig)
             startFailoverMonitor()
+            AutoBackupManager.scheduleRefresh(service)
         } catch (e: Exception) {
             Log.e(AppConfig.TAG, "startCoreLoop: Failed to send startup notifications", e)
             return false
@@ -319,6 +320,7 @@ object V2RayServiceManager {
         currentConfig = null
         
         SmartFailoverManager.stopFailoverMonitor()
+        AutoBackupManager.cancelRefresh()
 
         if (coreController.isRunning) {
             Log.i(AppConfig.TAG, "stopCoreLoop: stopping V2Ray core loop synchronously...")

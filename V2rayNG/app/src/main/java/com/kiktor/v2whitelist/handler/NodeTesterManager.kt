@@ -169,7 +169,8 @@ object NodeTesterManager {
         customMinMbps: Double? = null,
         customBytes: Long? = null,
         customTimeoutMs: Int? = null,
-        ignoreCustomEndpoint: Boolean = true
+        ignoreCustomEndpoint: Boolean = true,
+        skipSpeedCheck: Boolean = false
     ): Boolean {
         if (!currentCoroutineContext().isActive) return false
         
@@ -228,7 +229,8 @@ object NodeTesterManager {
                 MmkvManager.encodeServerTestDelayMillis(guid, elapsed)
 
                 // --- Тест скорости (если включён) ---
-                val speedCheckEnabled = customMinMbps != null || MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_SPEED_CHECK_ENABLED, true)
+                val speedCheckEnabled = !skipSpeedCheck &&
+                    (customMinMbps != null || MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_SPEED_CHECK_ENABLED, true))
                 if (speedCheckEnabled) {
                     val bytes = customBytes ?: (MmkvManager.decodeSettingsString(AppConfig.PREF_PROFILE_SPEED_CHECK_BYTES, "2000000")
                                        ?.toLongOrNull()?.takeIf { it > 0 } ?: 2_000_000L)

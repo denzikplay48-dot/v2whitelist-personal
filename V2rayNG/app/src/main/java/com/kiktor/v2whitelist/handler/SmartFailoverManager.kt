@@ -44,6 +44,7 @@ object SmartFailoverManager {
     private var monitorJob: Job? = null
 
     private val isProbing = AtomicBoolean(false)
+    private val quickProbeOnNextStart = AtomicBoolean(false)
     private var consecutiveStallSeconds = 0
 
     @Volatile
@@ -55,9 +56,11 @@ object SmartFailoverManager {
     fun startFailoverMonitor(service: Service) {
         if (!MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false)) {
             Log.d(AppConfig.TAG, "Failover: disabled in preferences")
+            quickProbeOnNextStart.set(false)
             return
         }
 
+        val quickInitialProbe = quickProbeOnNextStart.getAndSet(false)
         stopFailoverMonitor()
         isMonitoring = true
         consecutiveStallSeconds = 0
@@ -66,6 +69,11 @@ object SmartFailoverManager {
         monitorJob = scope.launch {
             Log.i(AppConfig.TAG, "Failover monitor started. Waiting 10s warmup...")
             delay(10_000L) // Начальный прогрев туннеля
+
+            if (quickInitialProbe && isActive && isMonitoring && V2RayServiceManager.isRunning()) {
+                GeekModeLogger.log("Failover", "Running an early health check for the selected reserve profile")
+                runHeartbeatCheck(service)
+            }
 
             while (isActive && isMonitoring && V2RayServiceManager.isRunning()) {
                 val intervalSec = MmkvManager.decodeSettingsString(AppConfig.PREF_AUTO_FAILOVER_INTERVAL_SEC, "30")?.toLongOrNull() ?: 30L
@@ -90,6 +98,14 @@ object SmartFailoverManager {
         consecutiveStallSeconds = 0
         isProbing.set(false)
         Log.d(AppConfig.TAG, "Failover monitor stopped")
+    }
+
+    fun requestQuickProbeOnNextStart() {
+        quickProbeOnNextStart.set(true)
+    }
+
+    fun cancelQuickProbeOnNextStart() {
+        quickProbeOnNextStart.set(false)
     }
 
     /**
@@ -141,6 +157,7 @@ object SmartFailoverManager {
                     GeekModeLogger.log("Failover", "Express probe confirmed tunnel dead ($delay ms). Initiating failover...")
                     handleServerFailure(service, reason)
                 } else {
+                    AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
                     GeekModeLogger.log("Failover", "Express probe passed ($delay ms). Tunnel is alive, false alarm.")
                 }
             } finally {
@@ -164,8 +181,11 @@ object SmartFailoverManager {
                     GeekModeLogger.log("Failover", "Heartbeat retry failed ($retryDelay ms). Initiating failover...")
                     handleServerFailure(service, "Heartbeat check failed twice")
                 } else {
+                    AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), retryDelay)
                     GeekModeLogger.log("Failover", "Heartbeat retry succeeded ($retryDelay ms)")
                 }
+            } else {
+                AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
             }
         } finally {
             isProbing.set(false)
@@ -202,23 +222,35 @@ object SmartFailoverManager {
             PhysicalNetworkState.WHITELIST_ONLY,
             PhysicalNetworkState.FULL_INTERNET -> {
                 val currentGuid = MmkvManager.getSelectServer()
-                val nextGuid = selectNextServer(currentGuid)
-                if (nextGuid == null || nextGuid == currentGuid) {
-                    GeekModeLogger.log("Failover", "Cannot failover: no alternative server found")
-                    return
-                }
                 if (currentGuid != null && MmkvManager.quarantineProfileForAutoFailover(currentGuid)) {
                     GeekModeLogger.log(
                         "Failover",
                         "Quarantined failed profile $currentGuid for ${MmkvManager.getAutoFailoverQuarantineMinutes()} minutes"
                     )
                 }
+                if (currentGuid != null) {
+                    AutoBackupManager.recordBackupCheckFailure(currentGuid)
+                }
+
+                val nextGuid = AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true).firstOrNull()
+                if (nextGuid == null) {
+                    GeekModeLogger.log("Failover", "No verified reserve profile is ready; starting a full profile scan")
+                    NotificationManager.showFailoverNotification()
+                    requestQuickProbeOnNextStart()
+                    if (!SmartConnectManager.switchServer(service)) {
+                        cancelQuickProbeOnNextStart()
+                        GeekModeLogger.log("Failover", "Full profile scan did not find a working alternative")
+                    }
+                    return
+                }
+
                 val profile = MmkvManager.decodeServerConfig(nextGuid)
                 val remarks = profile?.remarks ?: nextGuid
                 GeekModeLogger.log("Failover", "Hot-swapping from $currentGuid → $nextGuid ($remarks)")
                 NotificationManager.showFailoverNotification()
                 MmkvManager.setSelectServer(nextGuid)
                 MmkvManager.saveLastConnectedServer(nextGuid)
+                requestQuickProbeOnNextStart()
                 MessageUtil.sendMsg2Service(service, AppConfig.MSG_STATE_SWITCH_SERVER, "")
                 stopFailoverMonitor()
             }
@@ -227,16 +259,20 @@ object SmartFailoverManager {
 
     /** Выбирает следующий доступный профиль, пропуская карантинные. */
     fun selectNextServer(currentGuid: String?): String? {
-        val allServers = MmkvManager.decodeServerList()
-        if (allServers.size <= 1) return null
+        AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true).firstOrNull()?.let { guid ->
+            val profile = MmkvManager.decodeServerConfig(guid)
+            GeekModeLogger.log("Failover", "Selected verified reserve profile: ${profile?.remarks ?: guid} ($guid)")
+            return guid
+        }
 
-        val filteredPairs = SmartConnectManager.filterServers(allServers, excludeGuid = currentGuid)
-        if (filteredPairs.isEmpty()) return null
-        val currentIndex = if (currentGuid != null) filteredPairs.indexOfFirst { it.first == currentGuid } else -1
-        val startIndex = if (currentIndex != -1) (currentIndex + 1) % filteredPairs.size else 0
-        val selected = filteredPairs[startIndex]
-        GeekModeLogger.log("Failover", "Selected next server from filtered list: ${selected.second.remarks} (${selected.first})")
-        return selected.first
+        val fallback = SmartConnectManager.filterServers(
+            MmkvManager.decodeServerList(),
+            excludeGuid = currentGuid
+        ).firstOrNull()
+        if (fallback != null) {
+            GeekModeLogger.log("Failover", "No fresh reserve; selected first eligible profile for fallback scan: ${fallback.second.remarks} (${fallback.first})")
+        }
+        return fallback?.first
     }
 
     /**

@@ -52,6 +52,7 @@ object AppConfig {
     const val PREF_AUTO_FAILOVER_INTERVAL_SEC = "pref_auto_failover_interval_sec"
     const val PREF_AUTO_FAILOVER_QUARANTINE_MINUTES = "pref_auto_failover_quarantine_minutes"
     const val PREF_FAILOVER_QUARANTINE_PROFILES = "pref_failover_quarantine_profiles"
+    const val PREF_AUTO_BACKUP_PROFILES = "pref_auto_backup_profiles"
     const val PREF_SMART_FAILOVER_THRESHOLD_KBPS = "pref_smart_failover_threshold_kbps"
     const val PREF_SMART_FAILOVER_STALL_SEC = "pref_smart_failover_stall_sec"
     const val PREF_NETWORK_CHECK_ENABLED = "pref_network_check_enabled"
