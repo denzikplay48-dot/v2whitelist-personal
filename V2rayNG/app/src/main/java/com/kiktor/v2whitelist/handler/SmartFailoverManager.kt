@@ -34,6 +34,23 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 object SmartFailoverManager {
 
+    private const val FALLBACK_TUNNEL_PROBE_URL = "https://www.cloudflare.com/cdn-cgi/trace"
+
+    private data class TunnelHealth(
+        val delayMillis: Long,
+        val maxAcceptedDelayMillis: Long,
+        val exitIpAvailable: Boolean,
+        val fallbackEndpointAvailable: Boolean? = null
+    ) {
+        val delayProbePassed: Boolean
+            get() = delayMillis in 1L..maxAcceptedDelayMillis
+
+        val isHealthy: Boolean
+            get() = delayProbePassed || exitIpAvailable || fallbackEndpointAvailable == true
+
+        fun summary(): String = "delay=$delayProbePassed(${delayMillis}ms), exitIp=$exitIpAvailable, fallback=$fallbackEndpointAvailable"
+    }
+
     enum class PhysicalNetworkState {
         NO_INTERNET,      // Физического интернета нет совсем (лифт, метро, режим полета)
         WHITELIST_ONLY,   // ya.ru доступен, google.com недоступен (белые списки оператора)
@@ -152,13 +169,18 @@ object SmartFailoverManager {
             if (!isProbing.compareAndSet(false, true)) return@launch
             try {
                 GeekModeLogger.log("Failover", "Triggering express probe. Reason: $reason")
-                val delay = testTunnelDelay(2000L)
-                if (delay <= 0L || delay > 3000L) {
-                    GeekModeLogger.log("Failover", "Express probe confirmed tunnel dead ($delay ms). Initiating failover...")
+                val health = testTunnelHealth(2000L)
+                if (!health.isHealthy) {
+                    GeekModeLogger.log("Failover", "Express tunnel probes all failed (${health.summary()}). Initiating failover...")
                     handleServerFailure(service, reason)
                 } else {
+                    val delay = health.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                     AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
-                    GeekModeLogger.log("Failover", "Express probe passed ($delay ms). Tunnel is alive, false alarm.")
+                    if (!health.exitIpAvailable || health.fallbackEndpointAvailable == true) {
+                        GeekModeLogger.log("Failover", "Express tunnel probes passed (${health.summary()}); keeping the current profile.")
+                    } else {
+                        GeekModeLogger.log("Failover", "Express probe passed ($delay ms). Tunnel is alive, false alarm.")
+                    }
                 }
             } finally {
                 isProbing.set(false)
@@ -172,20 +194,25 @@ object SmartFailoverManager {
     private suspend fun runHeartbeatCheck(service: Service) {
         if (!isProbing.compareAndSet(false, true)) return
         try {
-            val delay = testTunnelDelay(3000L)
-            if (delay <= 0L || delay > 5000L) {
-                GeekModeLogger.log("Failover", "Heartbeat probe failed ($delay ms). Retrying in 1.5s...")
+            val health = testTunnelHealth(3000L)
+            if (!health.isHealthy) {
+                GeekModeLogger.log("Failover", "Heartbeat tunnel probes failed (${health.summary()}). Retrying in 1.5s...")
                 delay(1500L)
-                val retryDelay = testTunnelDelay(3000L)
-                if (retryDelay <= 0L || retryDelay > 5000L) {
-                    GeekModeLogger.log("Failover", "Heartbeat retry failed ($retryDelay ms). Initiating failover...")
-                    handleServerFailure(service, "Heartbeat check failed twice")
+                val retryHealth = testTunnelHealth(3000L)
+                if (!retryHealth.isHealthy) {
+                    GeekModeLogger.log("Failover", "Heartbeat retry failed (${retryHealth.summary()}). Initiating failover...")
+                    handleServerFailure(service, "Heartbeat tunnel and exit IP probes failed twice")
                 } else {
+                    val retryDelay = retryHealth.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                     AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), retryDelay)
-                    GeekModeLogger.log("Failover", "Heartbeat retry succeeded ($retryDelay ms)")
+                    GeekModeLogger.log("Failover", "Heartbeat retry recovered (${retryHealth.summary()}); keeping the current profile.")
                 }
             } else {
+                val delay = health.delayMillis.takeIf { it > 0L } ?: Long.MAX_VALUE
                 AutoBackupManager.recordActiveHeartbeatSuccess(MmkvManager.getSelectServer(), delay)
+                if (!health.exitIpAvailable || health.fallbackEndpointAvailable == true) {
+                    GeekModeLogger.log("Failover", "Heartbeat tunnel probes passed (${health.summary()}); keeping the current profile.")
+                }
             }
         } finally {
             isProbing.set(false)
@@ -204,6 +231,36 @@ object SmartFailoverManager {
             } ?: -1L
         } catch (_: Exception) {
             -1L
+        }
+    }
+
+    /**
+     * Checks the configured Xray delay probe and the Exit IP service in parallel.
+     * If both fail, a separate provider is checked through the active SOCKS proxy.
+     * One reachable path is enough to avoid switching because a single endpoint can be unavailable.
+     */
+    private suspend fun testTunnelHealth(timeoutMs: Long): TunnelHealth = kotlinx.coroutines.coroutineScope {
+        val timeout = timeoutMs.coerceIn(1000L, 5000L).toInt()
+        val maxAcceptedDelay = if (timeoutMs <= 2000L) 3000L else 5000L
+        val delayProbe = async(Dispatchers.IO) { testTunnelDelay(timeoutMs) }
+        val exitIpProbe = async(Dispatchers.IO) {
+            try {
+                !SpeedtestManager.getRemoteIPInfo(timeout).isNullOrBlank()
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        val delayMillis = delayProbe.await()
+        val exitIpAvailable = exitIpProbe.await()
+        val delayProbePassed = delayMillis in 1L..maxAcceptedDelay
+        if (delayProbePassed || exitIpAvailable) {
+            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable)
+        } else {
+            val fallbackAvailable = withContext(Dispatchers.IO) {
+                SpeedtestManager.isUrlReachableViaActiveProxy(FALLBACK_TUNNEL_PROBE_URL, timeout)
+            }
+            TunnelHealth(delayMillis, maxAcceptedDelay, exitIpAvailable, fallbackAvailable)
         }
     }
 

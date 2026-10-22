@@ -229,7 +229,7 @@ object SpeedtestManager {
         return@withContext Pair(elapsed, result)
     }
 
-    fun getRemoteIPInfo(): String? {
+    fun getRemoteIPInfo(timeoutMs: Int = 5000): String? {
         val url = MmkvManager.decodeSettingsString(AppConfig.PREF_IP_API_URL)
             .takeIf { !it.isNullOrBlank() } ?: AppConfig.IP_API_URL
 
@@ -238,12 +238,12 @@ object SpeedtestManager {
 
         val content = if (socksPort > 0) {
             try {
-                HttpUtil.getUrlContentViaSocks(url, null, 5000, socksPort)
+                HttpUtil.getUrlContentViaSocks(url, null, timeoutMs, socksPort)
             } catch (_: Exception) {
                 null
             }
         } else {
-            HttpUtil.getUrlContent(url, 5000, 0)
+            HttpUtil.getUrlContent(url, timeoutMs, 0)
         }
         if (content.isNullOrBlank()) return null
 
@@ -255,6 +255,7 @@ object SpeedtestManager {
             ipInfo.ip_addr,
             ipInfo.query
         ).firstOrNull { !it.isNullOrBlank() }
+            ?: return null
 
         val country = listOf(
             ipInfo.country_code,
@@ -263,6 +264,30 @@ object SpeedtestManager {
             ipInfo.location?.country_code
         ).firstOrNull { !it.isNullOrBlank() }
 
-        return "(${country ?: "unknown"}) ${ip ?: "unknown"}"
+        return "(${country ?: "unknown"}) $ip"
+    }
+
+    /** Checks an independent HTTP endpoint through the active local SOCKS proxy. */
+    fun isUrlReachableViaActiveProxy(url: String, timeoutMs: Int = 3000): Boolean {
+        if (V2RayServiceManager.isRunning() != true) return false
+        val socksPort = SettingsManager.getSocksPort()
+        if (socksPort <= 0) return false
+
+        val connection = HttpUtil.createProxyConnection(
+            url,
+            socksPort,
+            timeoutMs,
+            timeoutMs,
+            proxyType = Proxy.Type.SOCKS
+        ) ?: return false
+
+        return try {
+            connection.requestMethod = "GET"
+            connection.responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        } finally {
+            connection.disconnect()
+        }
     }
 }
