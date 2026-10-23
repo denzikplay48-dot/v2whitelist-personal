@@ -502,91 +502,79 @@ object AngConfigManager {
      *                   Если false — параллельная гонка зеркал (для UI, когда пользователь ждёт).
      * @return The number of configurations updated.
      */
-    fun updateConfigViaSub(it: SubscriptionCache, socksPort: Int = 0, sequential: Boolean = false): Int {
+    fun updateConfigViaSub(cache: SubscriptionCache, socksPort: Int = 0, sequential: Boolean = false): Int {
         try {
-            if (TextUtils.isEmpty(it.guid) || TextUtils.isEmpty(it.subscription.remarks) || TextUtils.isEmpty(it.subscription.url)) {
+            if (TextUtils.isEmpty(cache.guid) || TextUtils.isEmpty(cache.subscription.remarks) || TextUtils.isEmpty(cache.subscription.url)) {
                 return 0
             }
-            if (!it.subscription.enabled) {
+            if (!cache.subscription.enabled) {
                 return 0
             }
-            
-            val urls = it.subscription.url.split("|").map { url -> url.trim() }.filter { url -> url.isNotEmpty() }
-            if (urls.isEmpty()) return 0
-            
-            Log.i(AppConfig.TAG, "Updating sub '${it.subscription.remarks}' via ${urls.size} mirrors (sequential=$sequential)")
-            val userAgent = it.subscription.userAgent
-            val httpPort = if (socksPort > 0) SettingsManager.getHttpPort() else 0
-            var configText = ""
 
-            if (sequential) {
-                // ── Последовательный режим (фоновый воркер) ──────────────────────────────
-                // Перебираем зеркала по одному: нет GlobalScope, нет Channel, нет лишних потоков.
-                // Первое успешное зеркало — останавливаемся. Дёшево по RAM и CPU.
-                kotlinx.coroutines.runBlocking {
-                    for (singleUrl in urls) {
-                        try {
-                            val urlFixed = HttpUtil.toIdnUrl(singleUrl)
-                            if (!Utils.isValidUrl(urlFixed)) {
-                                if (!it.subscription.allowInsecureUrl && !Utils.isValidSubUrl(urlFixed)) continue
+            // Newline separates independent sources; pipe-separated URLs remain mirrors.
+            val sourceGroups = cache.subscription.url.lineSequence()
+                .map { source -> source.split("|").map { url -> url.trim() }.filter { url -> url.isNotEmpty() } }
+                .filter { urls -> urls.isNotEmpty() }
+                .toList()
+            if (sourceGroups.isEmpty()) return 0
+
+            Log.i(AppConfig.TAG, "Updating sub '${cache.subscription.remarks}' from ${sourceGroups.size} sources (sequential=$sequential)")
+            val userAgent = cache.subscription.userAgent
+            val httpPort = if (socksPort > 0) SettingsManager.getHttpPort() else 0
+            fun fetchSource(urls: List<String>): String {
+                if (sequential) {
+                    var resultText = ""
+                    kotlinx.coroutines.runBlocking {
+                        for (singleUrl in urls) {
+                            try {
+                                val urlFixed = HttpUtil.toIdnUrl(singleUrl)
+                                if (!Utils.isValidUrl(urlFixed) &&
+                                    !cache.subscription.allowInsecureUrl && !Utils.isValidSubUrl(urlFixed)) continue
+                                var result = ""
+                                if (socksPort > 0) {
+                                    try { result = HttpUtil.getUrlContentViaSocks(urlFixed, userAgent, 6000, socksPort) } catch (_: Exception) {}
+                                }
+                                if (result.isEmpty() && httpPort > 0) {
+                                    try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 6000, httpPort) } catch (_: Exception) {}
+                                }
+                                if (result.isEmpty()) {
+                                    try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 6000) } catch (_: Exception) {}
+                                }
+                                if (result.isNotEmpty()) {
+                                    Log.i(AppConfig.TAG, "Sequential mirror succeeded: $singleUrl")
+                                    resultText = result
+                                    return@runBlocking
+                                }
+                                Log.d(AppConfig.TAG, "Sequential mirror failed: $singleUrl")
+                            } catch (e: Exception) {
+                                Log.d(AppConfig.TAG, "Sequential mirror error: $singleUrl — ${e.message}")
                             }
-                            var result = ""
-                            // 1. SOCKS5 Proxy
-                            if (socksPort > 0) {
-                                try { result = HttpUtil.getUrlContentViaSocks(urlFixed, userAgent, 6000, socksPort) } catch (_: Exception) {}
-                            }
-                            // 2. HTTP Proxy
-                            if (result.isEmpty() && httpPort > 0) {
-                                try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 6000, httpPort) } catch (_: Exception) {}
-                            }
-                            // 3. Direct
-                            if (result.isEmpty()) {
-                                try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 6000) } catch (_: Exception) {}
-                            }
-                            if (result.isNotEmpty()) {
-                                Log.i(AppConfig.TAG, "Sequential mirror succeeded: $singleUrl")
-                                configText = result
-                                return@runBlocking // нашли — выходим сразу
-                            }
-                            Log.d(AppConfig.TAG, "Sequential mirror failed: $singleUrl")
-                        } catch (e: Exception) {
-                            Log.d(AppConfig.TAG, "Sequential mirror error: $singleUrl — ${e.message}")
                         }
                     }
+                    return resultText
                 }
-            } else {
-                // ── Параллельная гонка (UI, ручное обновление) ───────────────────────────
-                // Все зеркала стартуют одновременно, побеждает первое успешное.
-                // Быстро, но ресурсоёмко — не для фонового воркера.
-                kotlinx.coroutines.runBlocking {
+
+                return kotlinx.coroutines.runBlocking {
                     val channel = kotlinx.coroutines.channels.Channel<String>(urls.size)
                     val activeJobs = java.util.concurrent.atomic.AtomicInteger(urls.size)
-                    
+                    val onlyViaVpn = MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUB_ONLY_VIA_VPN, false)
                     val jobs = urls.map { singleUrl ->
                         @OptIn(DelicateCoroutinesApi::class)
                         GlobalScope.launch(Dispatchers.IO) {
                             var result = ""
                             try {
                                 val urlFixed = HttpUtil.toIdnUrl(singleUrl)
-                                if (!Utils.isValidUrl(urlFixed)) {
-                                    if (!it.subscription.allowInsecureUrl && !Utils.isValidSubUrl(urlFixed)) return@launch
-                                }
-                                
-                                val onlyViaVpn = MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUB_ONLY_VIA_VPN, false)
-
-                                // Если VPN активен (socksPort > 0), сразу опрашиваем через локальный прокси
+                                if (!Utils.isValidUrl(urlFixed) &&
+                                    !cache.subscription.allowInsecureUrl && !Utils.isValidSubUrl(urlFixed)) return@launch
                                 if (socksPort > 0) {
                                     try { result = HttpUtil.getUrlContentViaSocks(urlFixed, userAgent, 3500, socksPort) } catch (_: Exception) {}
                                 }
                                 if (result.isEmpty() && httpPort > 0) {
                                     try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 3500, httpPort) } catch (_: Exception) {}
                                 }
-
-                                // Если через прокси не удалось или VPN не включен (socksPort == 0) — пробуем напрямую
                                 if (result.isEmpty() && !onlyViaVpn) {
                                     try { result = HttpUtil.getUrlContentWithUserAgent(urlFixed, userAgent, 3500) } catch (_: Exception) {}
                                 }
-
                                 if (result.isNotEmpty()) {
                                     Log.i(AppConfig.TAG, "Mirror WON the race: $singleUrl")
                                     channel.trySend(result)
@@ -594,49 +582,51 @@ object AngConfigManager {
                             } catch (e: Exception) {
                                 Log.d(AppConfig.TAG, "Mirror failed: $singleUrl")
                             } finally {
-                                if (activeJobs.decrementAndGet() == 0) {
-                                    channel.trySend("")
-                                }
+                                if (activeJobs.decrementAndGet() == 0) channel.trySend("")
                             }
                         }
                     }
-                    
-                    configText = kotlinx.coroutines.withTimeoutOrNull(15_000L) {
-                        channel.receive()
-                    } ?: ""
-                    
-                    // Отменяем все оставшиеся загрузки зеркал
+                    val result = kotlinx.coroutines.withTimeoutOrNull(15_000L) { channel.receive() } ?: ""
                     jobs.forEach { job -> job.cancel() }
+                    result
                 }
             }
 
-            if (configText.isEmpty()) {
-                Log.w(AppConfig.TAG, "Update subscription: all mirrors failed for ${it.subscription.remarks}")
-                it.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
-                MmkvManager.encodeSubscription(it.guid, it.subscription)
+            val configTexts = sourceGroups.mapNotNull { urls -> fetchSource(urls).takeIf { text -> text.isNotEmpty() } }
+            if (configTexts.isEmpty()) {
+                Log.w(AppConfig.TAG, "Update subscription: all sources failed for ${cache.subscription.remarks}")
+                cache.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
+                MmkvManager.encodeSubscription(cache.guid, cache.subscription)
                 return 0
             }
-            
-            val count = synchronized(AngConfigManager::class.java) {
-                val res = parseConfigViaSub(configText, it.guid, false)
-                if (res > 0) {
-                    it.subscription.lastUpdated = System.currentTimeMillis()
-                    it.subscription.lastUpdateFailed = false
-                    MmkvManager.encodeSubscription(it.guid, it.subscription)
-                    MmkvManager.removeDuplicateServer() // Авто-очистка дубликатов
-                    Log.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $res configs (duplicates cleaned)")
-                } else {
-                    Log.w(AppConfig.TAG, "Update subscription: parsed 0 configs for ${it.subscription.remarks}")
-                    it.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
-                    MmkvManager.encodeSubscription(it.guid, it.subscription)
+
+            return synchronized(AngConfigManager::class.java) {
+                var totalParsed = 0
+                var hasParsedProfiles = false
+                for (configText in configTexts) {
+                    val parsed = parseConfigViaSub(configText, cache.guid, hasParsedProfiles)
+                    if (parsed > 0) {
+                        totalParsed += parsed
+                        hasParsedProfiles = true
+                    }
                 }
-                res
+                if (totalParsed > 0) {
+                    cache.subscription.lastUpdated = System.currentTimeMillis()
+                    cache.subscription.lastUpdateFailed = false
+                    MmkvManager.encodeSubscription(cache.guid, cache.subscription)
+                    MmkvManager.removeDuplicateServer()
+                    Log.i(AppConfig.TAG, "Subscription updated: ${cache.subscription.remarks}, $totalParsed configs from ${sourceGroups.size} sources (duplicates cleaned)")
+                } else {
+                    Log.w(AppConfig.TAG, "Update subscription: parsed 0 configs for ${cache.subscription.remarks}")
+                    cache.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
+                    MmkvManager.encodeSubscription(cache.guid, cache.subscription)
+                }
+                totalParsed
             }
-            return count
         } catch (e: Exception) {
             Log.e(AppConfig.TAG, "Failed to update config via subscription", e)
-            it.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
-            MmkvManager.encodeSubscription(it.guid, it.subscription)
+            cache.subscription.lastUpdateFailed = NetworkManager.shouldReportSubscriptionFailure()
+            MmkvManager.encodeSubscription(cache.guid, cache.subscription)
             return 0
         }
     }

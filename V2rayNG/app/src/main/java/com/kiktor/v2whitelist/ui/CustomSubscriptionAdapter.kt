@@ -11,8 +11,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.kiktor.v2whitelist.R
+import com.kiktor.v2whitelist.extension.toast
 import com.kiktor.v2whitelist.helper.ItemTouchHelperAdapter
 import com.kiktor.v2whitelist.helper.ItemTouchHelperViewHolder
+import com.kiktor.v2whitelist.util.Utils
 import java.util.Collections
 
 class CustomSubscriptionAdapter(
@@ -27,6 +29,7 @@ class CustomSubscriptionAdapter(
         val cardView: MaterialCardView = view as MaterialCardView
         val tvName: TextView = view.findViewById(R.id.tv_sub_name)
         val tvUrl: TextView = view.findViewById(R.id.tv_sub_url)
+        val tvProfileCount: TextView = view.findViewById(R.id.tv_sub_profile_count)
         val tvLastUpdate: TextView = view.findViewById(R.id.tv_sub_last_update)
         val tvScenarios: TextView = view.findViewById(R.id.tv_sub_scenarios)
         val switchEnabled: MaterialSwitch = view.findViewById(R.id.switch_sub_enabled)
@@ -50,7 +53,16 @@ class CustomSubscriptionAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.tvName.text = item.name
-        holder.tvUrl.text = item.url
+        holder.tvUrl.text = item.url.lineSequence()
+            .map { it.substringBefore('|').trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n")
+        holder.tvProfileCount.text = holder.itemView.context.getString(R.string.subscription_profile_count, item.profileCount)
+        holder.tvUrl.setOnLongClickListener {
+            Utils.setClipboard(holder.itemView.context, item.url.replace("|", "\n"))
+            holder.itemView.context.toast(R.string.toast_subscription_sources_copied)
+            true
+        }
         
         if (item.lastUpdateFailed && item.enabled) {
             val redColor = ContextCompat.getColor(holder.itemView.context, android.R.color.holo_red_light)

@@ -45,6 +45,11 @@ class CustomSubscriptionsActivity : BaseActivity() {
         setupRecyclerView()
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshProfileCounts(notify = true)
+    }
+
     private fun setupAddButton() {
         findViewById<View>(R.id.btn_add_sub).setOnClickListener {
             showAddDialog()
@@ -138,7 +143,12 @@ class CustomSubscriptionsActivity : BaseActivity() {
                     toast(R.string.sub_setting_remarks)
                     return@setPositiveButton
                 }
-                if (url.isEmpty() || !Utils.isValidUrl(url)) {
+                val sourceUrls = url.lineSequence()
+                    .flatMap { it.split('|').asSequence() }
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .toList()
+                if (sourceUrls.isEmpty() || !sourceUrls.all { Utils.isValidUrl(it) || Utils.isValidSubUrl(it) }) {
                     toast(R.string.toast_invalid_url)
                     return@setPositiveButton
                 }
@@ -191,9 +201,17 @@ class CustomSubscriptionsActivity : BaseActivity() {
                 val items = JsonUtil.fromJson(json, Array<CustomSubItem>::class.java)
                 if (items != null) {
                     customSubs = items.toMutableList()
+
+                    val effectiveUrls = com.kiktor.v2whitelist.handler.SubscriptionHelper.loadCustomSubs()
+                        .associate { it.id to it.url }
+                    customSubs.forEach { sub -> effectiveUrls[sub.id]?.let { sub.url = it } }
                     
                     // Обогащаем данными о последнем обновлении и сценариях
                     val allSubs = MmkvManager.decodeSubscriptions()
+                    val profileCounts = MmkvManager.decodeServerList()
+                        .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.subscriptionId }
+                        .groupingBy { it }
+                        .eachCount()
                     customSubs.forEach { sub ->
                         val realSub = allSubs.find { it.guid == "custom_sub_${sub.id}" || it.guid == sub.id }
                         if (!sub.enabled) {
@@ -209,6 +227,8 @@ class CustomSubscriptionsActivity : BaseActivity() {
                             sub.lastUpdated = realSub?.subscription?.lastUpdated ?: 0L
                             sub.lastUpdateFailed = (realSub?.subscription?.lastUpdateFailed ?: false) && sub.enabled
                         }
+                        sub.profileCount = setOf("custom_sub_${sub.id}", sub.id)
+                            .sumOf { profileCounts[it] ?: 0 }
 
                         if (sub.targetScenarios.isEmpty()) {
                             val defaultMatch = com.kiktor.v2whitelist.handler.DefaultSubscriptions.PREPOPULATED_SUBS.find { it.id == sub.id }
@@ -252,6 +272,7 @@ class CustomSubscriptionsActivity : BaseActivity() {
                 if (!isEnabled) {
                     customSubs[position].lastUpdateFailed = false
                     customSubs[position].lastUpdated = 0L
+                    customSubs[position].profileCount = 0
                     MmkvManager.removeServerViaSubid(guid)
                     MmkvManager.removeServerViaSubid(subId)
                     
@@ -334,6 +355,17 @@ class CustomSubscriptionsActivity : BaseActivity() {
         }
     }
 
+    private fun refreshProfileCounts(notify: Boolean) {
+        val profileCounts = MmkvManager.decodeServerList()
+            .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.subscriptionId }
+            .groupingBy { it }
+            .eachCount()
+        customSubs.forEach { sub ->
+            sub.profileCount = setOf("custom_sub_${sub.id}", sub.id).sumOf { profileCounts[it] ?: 0 }
+        }
+        if (notify && this::adapter.isInitialized) adapter.notifyDataSetChanged()
+    }
+
     data class CustomSubItem(
         val id: String,
         var name: String,
@@ -344,6 +376,7 @@ class CustomSubscriptionsActivity : BaseActivity() {
         var lastUpdated: Long = 0L,
         var sharePercent: Int? = null,
         var lastUpdateFailed: Boolean = false,
-        var targetScenarios: List<String> = emptyList()
+        var targetScenarios: List<String> = emptyList(),
+        @kotlin.jvm.Transient var profileCount: Int = 0
     )
 }

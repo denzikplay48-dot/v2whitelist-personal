@@ -3,10 +3,12 @@ package com.kiktor.v2whitelist.ui
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.CheckBoxPreference
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreference
 import com.kiktor.v2whitelist.AngApplication
 import com.kiktor.v2whitelist.AppConfig
 import com.kiktor.v2whitelist.AppConfig.VPN
@@ -15,10 +17,16 @@ import com.kiktor.v2whitelist.extension.toLongEx
 import com.kiktor.v2whitelist.extension.toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.kiktor.v2whitelist.handler.MmkvManager
+import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
+import com.kiktor.v2whitelist.handler.SettingsChangeManager
 import com.kiktor.v2whitelist.handler.SettingsManager
+import com.kiktor.v2whitelist.handler.SmartConnectManager
 import com.kiktor.v2whitelist.helper.BackupManager
 import com.kiktor.v2whitelist.helper.MmkvPreferenceDataStore
 import com.kiktor.v2whitelist.util.Utils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsActivity : BaseActivity() {
     private var lastNightMode: String? = null
@@ -53,6 +61,8 @@ class SettingsActivity : BaseActivity() {
         private val localDns by lazy { findPreference<CheckBoxPreference>(AppConfig.PREF_LOCAL_DNS_ENABLED) }
         private val fakeDns by lazy { findPreference<CheckBoxPreference>(AppConfig.PREF_FAKE_DNS_ENABLED) }
         private val appendHttpProxy by lazy { findPreference<CheckBoxPreference>(AppConfig.PREF_APPEND_HTTP_PROXY) }
+        private val serviceAppsBypass by lazy { findPreference<SwitchPreference>(AppConfig.PREF_SERVICE_APPS_BYPASS) }
+        private var serviceAppsRoutePending = false
 
         private val exportDataLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
             if (uri != null) {
@@ -110,9 +120,30 @@ class SettingsActivity : BaseActivity() {
 
             initPreferenceSummaries()
 
+            findPreference<EditTextPreference>(AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES)?.let { preference ->
+                preference.summary = getString(R.string.summary_profile_subscription_sources)
+                preference.setOnPreferenceChangeListener { _, newValue ->
+                    val sourceLines = (newValue as? String)
+                        .orEmpty()
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toList()
+                    val valid = sourceLines.isNotEmpty() && sourceLines.all { source ->
+                        source.split('|').all { url ->
+                            Utils.isValidUrl(url.trim()) || Utils.isValidSubUrl(url.trim())
+                        }
+                    }
+                    if (!valid) {
+                        requireContext().toast(getString(R.string.toast_invalid_url))
+                    }
+                    valid
+                }
+            }
+
             findPreference<EditTextPreference>(AppConfig.PREF_AUTO_FAILOVER_QUARANTINE_MINUTES)?.let { preference ->
                 fun updateSummary(minutes: Int) {
-                    preference.summary = getString(R.string.summary_pref_auto_failover_quarantine_minutes, minutes)
+                    preference.summary = minutes.toString()
                 }
 
                 updateSummary(MmkvManager.getAutoFailoverQuarantineMinutes())
@@ -130,7 +161,7 @@ class SettingsActivity : BaseActivity() {
 
             findPreference<EditTextPreference>(AppConfig.PREF_AUTO_FAILOVER_MAX_PING_MS)?.let { preference ->
                 fun updateSummary(milliseconds: Long) {
-                    preference.summary = getString(R.string.summary_pref_auto_failover_max_ping, milliseconds)
+                    preference.summary = milliseconds.toString()
                 }
 
                 updateSummary(SettingsManager.getAutoFailoverMaxPingMillis())
@@ -145,6 +176,11 @@ class SettingsActivity : BaseActivity() {
                     }
                 }
             }
+
+            serviceAppsBypass?.setOnPreferenceChangeListener { _, newValue ->
+                handleServiceAppsBypassChange(newValue)
+            }
+            updateServiceAppsBypassPreference()
 
             localDns?.setOnPreferenceChangeListener { _, any ->
                 updateLocalDns(any as Boolean)
@@ -282,6 +318,7 @@ class SettingsActivity : BaseActivity() {
                     lp.summary = if (idx >= 0) lp.entries[idx] else valueStr
                 }
                 updateMode(valueStr)
+                view?.post { updateServiceAppsBypassPreference() }
                 true
             }
             mode?.dialogLayoutResource = R.layout.preference_with_help_link
@@ -319,6 +356,65 @@ class SettingsActivity : BaseActivity() {
                 importDataLauncher.launch(arrayOf("application/json", "*/*"))
                 true
             }
+        }
+
+        private fun handleServiceAppsBypassChange(newValue: Any?): Boolean {
+            val bypassEnabled = newValue as? Boolean ?: return false
+            if (!SettingsManager.isVpnMode()) {
+                requireContext().toast(getString(R.string.service_apps_summary_requires_vpn))
+                return false
+            }
+            if (ServiceAppsRoutingManager.selectedPackages().isEmpty()) {
+                requireContext().toast(getString(R.string.service_apps_no_selection))
+                return false
+            }
+            if (ServiceAppsRoutingManager.switchablePackages().isEmpty()) {
+                requireContext().toast(getString(R.string.service_apps_route_static))
+                return false
+            }
+            if (bypassEnabled) return true
+            if (SmartConnectManager.isScanning.get()) {
+                requireContext().toast(getString(R.string.status_switching_server))
+                return false
+            }
+
+            serviceAppsRoutePending = true
+            updateServiceAppsBypassPreference()
+            val appContext = requireContext().applicationContext
+            lifecycleScope.launch {
+                val prepared = withContext(Dispatchers.IO) {
+                    ServiceAppsRoutingManager.prepareVpnMode(appContext)
+                }
+                serviceAppsRoutePending = false
+                if (prepared) {
+                    serviceAppsBypass?.isChecked = false
+                    SettingsChangeManager.makeRestartService()
+                } else {
+                    requireContext().toast(getString(R.string.service_apps_no_eligible_profile))
+                }
+                updateServiceAppsBypassPreference()
+            }
+            return false
+        }
+
+        private fun updateServiceAppsBypassPreference() {
+            val preference = serviceAppsBypass ?: return
+            val selectedCount = ServiceAppsRoutingManager.selectedPackages().size
+            val switchableCount = ServiceAppsRoutingManager.switchablePackages().size
+            val vpnMode = SettingsManager.isVpnMode()
+            preference.isEnabled = switchableCount > 0 && vpnMode && !serviceAppsRoutePending
+            preference.summary = when {
+                serviceAppsRoutePending -> getString(R.string.service_apps_route_scanning)
+                selectedCount == 0 -> getString(R.string.service_apps_route_no_selection)
+                switchableCount == 0 -> getString(R.string.service_apps_route_static)
+                !vpnMode -> getString(R.string.service_apps_route_requires_vpn)
+                else -> getString(R.string.summary_service_apps_route)
+            }
+        }
+
+        override fun onResume() {
+            super.onResume()
+            updateServiceAppsBypassPreference()
         }
 
         private fun initPreferenceSummaries() {
@@ -378,6 +474,7 @@ class SettingsActivity : BaseActivity() {
             // Initialize Yandex update preferences state
             val onlyViaVpn = MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUB_ONLY_VIA_VPN, false)
             updateYandexUpdatePreferences(onlyViaVpn)
+            updateServiceAppsBypassPreference()
         }
 
         private fun updateYandexUpdatePreferences(onlyViaVpn: Boolean) {

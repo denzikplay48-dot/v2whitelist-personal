@@ -39,7 +39,6 @@ import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.NotificationManager
 import com.kiktor.v2whitelist.handler.SettingsChangeManager
 import com.kiktor.v2whitelist.handler.SettingsManager
-import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
 import com.kiktor.v2whitelist.handler.SmartConnectManager
 import com.kiktor.v2whitelist.handler.SpeedtestManager
 import com.kiktor.v2whitelist.handler.V2RayServiceManager
@@ -71,8 +70,6 @@ class MainActivity : HelperBaseActivity() {
     // true пока мы показываем сообщение об ошибке после провала SmartConnect (2.5с задержка)
     private var isShowingError = false
     private var watchdogJob: Job? = null
-    private var updatingServiceAppsSwitch = false
-    private var serviceAppsSwitchPending = false
 
     private fun cancelWatchdog() {
         watchdogJob?.cancel()
@@ -99,7 +96,6 @@ class MainActivity : HelperBaseActivity() {
         ) {
             restartV2Ray()
         }
-        updateServiceAppsRouteUi()
     }
     private val scannerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -180,14 +176,6 @@ class MainActivity : HelperBaseActivity() {
         binding.btnUpdateSubQuick.setOnClickListener { handleUpdateSubscription() }
         binding.btnFilterQuick.setOnClickListener { startActivity(Intent(this, LocationFilterActivity::class.java)) }
         binding.btnShareQuick.setOnClickListener { handleShareApp() }
-        binding.btnServiceAppsSettings.setOnClickListener {
-            requestActivityLauncher.launch(Intent(this, ServiceAppsActivity::class.java))
-        }
-        binding.switchServiceAppsBypass.setOnCheckedChangeListener { _, bypassEnabled ->
-            if (updatingServiceAppsSwitch) return@setOnCheckedChangeListener
-            handleServiceAppsRouteChange(bypassEnabled)
-        }
-        updateServiceAppsRouteUi()
         findViewById<View>(R.id.layout_last_update)?.setOnClickListener {
             startActivity(Intent(this, CustomSubscriptionsActivity::class.java))
         }
@@ -875,74 +863,8 @@ class MainActivity : HelperBaseActivity() {
         }
     }
 
-    private fun updateServiceAppsRouteUi() {
-        val selectedCount = ServiceAppsRoutingManager.selectedPackages().size
-        val switchableCount = ServiceAppsRoutingManager.switchablePackages().size
-        val bypassEnabled = ServiceAppsRoutingManager.isBypassEnabled()
-        val vpnMode = SettingsManager.isVpnMode()
-        updatingServiceAppsSwitch = true
-        binding.switchServiceAppsBypass.isChecked = if (serviceAppsSwitchPending) true else bypassEnabled
-        binding.switchServiceAppsBypass.isEnabled = switchableCount > 0 && vpnMode && !serviceAppsSwitchPending
-        binding.tvServiceAppsRouteSummary.text = when {
-            serviceAppsSwitchPending -> getString(R.string.service_apps_scanning_profile)
-            selectedCount == 0 -> getString(R.string.service_apps_summary_empty)
-            switchableCount == 0 -> getString(R.string.service_apps_summary_static)
-            !vpnMode -> getString(R.string.service_apps_summary_requires_vpn)
-            bypassEnabled -> getString(R.string.service_apps_summary_direct, switchableCount)
-            else -> getString(R.string.service_apps_summary_vpn, switchableCount)
-        }
-        updatingServiceAppsSwitch = false
-    }
-
-    private fun handleServiceAppsRouteChange(bypassEnabled: Boolean) {
-        if (!SettingsManager.isVpnMode()) {
-            toast(R.string.service_apps_summary_requires_vpn)
-            updateServiceAppsRouteUi()
-            return
-        }
-        if (ServiceAppsRoutingManager.selectedPackages().isEmpty()) {
-            toast(R.string.service_apps_no_selection)
-            updateServiceAppsRouteUi()
-            return
-        }
-        if (ServiceAppsRoutingManager.switchablePackages().isEmpty()) {
-            toast(R.string.service_apps_summary_static)
-            updateServiceAppsRouteUi()
-            return
-        }
-
-        if (bypassEnabled) {
-            MmkvManager.encodeSettings(AppConfig.PREF_SERVICE_APPS_BYPASS, true)
-            if (mainViewModel.isRunning.value == true || V2RayServiceManager.isRunning()) restartV2Ray()
-            updateServiceAppsRouteUi()
-            return
-        }
-
-        if (isTaskRunning || SmartConnectManager.isScanning.get()) {
-            toast(R.string.status_switching_server)
-            updateServiceAppsRouteUi()
-            return
-        }
-
-        serviceAppsSwitchPending = true
-        updateServiceAppsRouteUi()
-        lifecycleScope.launch {
-            val prepared = withContext(Dispatchers.IO) {
-                ServiceAppsRoutingManager.prepareVpnMode(this@MainActivity)
-            }
-            serviceAppsSwitchPending = false
-            if (prepared) {
-                if (mainViewModel.isRunning.value == true || V2RayServiceManager.isRunning()) restartV2Ray()
-            } else {
-                toast(R.string.service_apps_no_eligible_profile)
-            }
-            updateServiceAppsRouteUi()
-        }
-    }
-
     override fun onResume() {
         super.onResume()
-        updateServiceAppsRouteUi()
         val currentNightMode = MmkvManager.decodeSettingsString(AppConfig.PREF_UI_MODE_NIGHT)
         val currentAmoled = SettingsManager.isAmoledBlackEnabled()
         val currentPalette = MmkvManager.decodeSettingsString(AppConfig.PREF_THEME_PALETTE)

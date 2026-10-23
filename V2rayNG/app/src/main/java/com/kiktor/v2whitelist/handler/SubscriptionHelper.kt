@@ -110,7 +110,7 @@ object SubscriptionHelper {
                 ?: customSubs.find { it.name == defaultSub.name }
             if (existing == null) {
                 Log.d(AppConfig.TAG, "Pre-populating subscription: ${defaultSub.name}")
-                customSubs.add(defaultSub)
+                customSubs.add(defaultSub.copy())
                 changed = true
             } else {
                 if (existing.id == defaultSub.id && existing.name != defaultSub.name) {
@@ -123,14 +123,19 @@ object SubscriptionHelper {
                     changed = true
                 }
                 if (existing.url != defaultSub.url) {
-                    existing.url = defaultSub.url
-                    changed = true
+                    if (defaultSub.id != "def_zieng2") {
+                        existing.url = defaultSub.url
+                        changed = true
+                    }
                 }
                 if (existing.targetScenarios != defaultSub.targetScenarios) {
                     existing.targetScenarios = defaultSub.targetScenarios
                     changed = true
                 }
             }
+        }
+        if (applyConfiguredProfileSources(customSubs)) {
+            changed = true
         }
         if (changed) {
             MmkvManager.encodeSettings(AppConfig.PREF_CUSTOM_SUB_URLS, com.kiktor.v2whitelist.util.JsonUtil.toJson(customSubs))
@@ -208,7 +213,7 @@ object SubscriptionHelper {
         val json = MmkvManager.decodeSettingsString(AppConfig.PREF_CUSTOM_SUB_URLS)
         if (json.isNullOrEmpty()) return emptyList()
         return try {
-            val subs = com.kiktor.v2whitelist.util.JsonUtil.fromJson(json, Array<CustomSubData>::class.java)?.toList() ?: emptyList()
+            val subs = com.kiktor.v2whitelist.util.JsonUtil.fromJson(json, Array<CustomSubData>::class.java)?.toMutableList() ?: mutableListOf()
             // Подтягиваем дефолтные сценарии для подписок, где сценарии еще не были назначены, и сбрасываем время у отключенных
             subs.forEach { sub ->
                 if (!sub.enabled) {
@@ -222,10 +227,46 @@ object SubscriptionHelper {
                     }
                 }
             }
+            applyConfiguredProfileSources(subs)
             subs
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /**
+     * Uses newline-separated URLs as independent sources for the built-in profile feed.
+     * The original URL expands to its existing mirror list; additional URLs are loaded
+     * independently and their profiles are appended to the same subscription.
+     */
+    private fun applyConfiguredProfileSources(subs: MutableList<CustomSubData>): Boolean {
+        val profileSub = subs.find { it.id == "def_zieng2" } ?: return false
+        val sourceText = MmkvManager.decodeSettingsString(
+            AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES,
+            AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
+        ) ?: AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
+        val configuredSources = sourceText.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .toList()
+        if (configuredSources.isEmpty()) return false
+
+        val originalFeed = DefaultSubscriptions.PREPOPULATED_SUBS
+            .firstOrNull { it.id == "def_zieng2" }
+            ?.url
+            ?: AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
+        val sourceGroups = configuredSources.map { source ->
+            if (source.equals(AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE, ignoreCase = true)) {
+                originalFeed
+            } else {
+                source
+            }
+        }
+        val combinedSources = sourceGroups.joinToString("\n")
+        if (profileSub.url == combinedSources) return false
+        profileSub.url = combinedSources
+        return true
     }
 
     /**

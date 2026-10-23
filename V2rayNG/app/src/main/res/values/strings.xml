@@ -283,6 +283,11 @@
 
     <string name="title_pref_auto_update_subscription">Automatic update subscriptions</string>
     <string name="summary_pref_auto_update_subscription">Update your subscriptions automatically at set intervals in the background. Depending on the device, this feature may not always work</string>
+    <string name="default_profile_subscription_source" translatable="false">https://hub.mos.ru/zieng2/wl/raw/main/list_universal.txt</string>
+    <string name="title_profile_subscription_sources">Profile sources</string>
+    <string name="summary_profile_subscription_sources">One URL per line. Additional sources add profiles to the original subscription.</string>
+    <string name="subscription_profile_count">Profiles: %1$d</string>
+    <string name="toast_subscription_sources_copied">Source links copied</string>
     <string name="title_pref_update_sub_only_via_vpn">Update Subscriptions Only via VPN</string>
     <string name="summary_pref_update_sub_only_via_vpn">If enabled, subscriptions will only update when a VPN connection is active, preventing leaks.</string>
     <string name="title_pref_sub_concurrency">Concurrent subscription updates</string>
@@ -309,21 +314,21 @@
     <string name="title_pref_auto_failover_interval">Heartbeat Interval (seconds)</string>
     <string name="summary_pref_auto_failover_interval">Periodic check interval. Default: 30s</string>
     <string name="title_pref_auto_failover_quarantine_minutes">Failed profile quarantine (minutes)</string>
-    <string name="summary_pref_auto_failover_quarantine_minutes">After automatic failover, skip the failed profile for %1$d minutes. Set 0 to disable; maximum 10080.</string>
+    <string name="summary_pref_auto_failover_quarantine_minutes">%1$d</string>
     <string name="error_failover_quarantine_minutes_range">Enter a value from 0 to 10080 minutes.</string>
     <string name="title_pref_auto_failover_max_ping">Maximum accepted ping (ms)</string>
-    <string name="summary_pref_auto_failover_max_ping">Switch profiles when ping is unavailable or exceeds %1$d ms. Used by Auto Failover and service-app VPN mode. Range: 100–3000 ms.</string>
+    <string name="summary_pref_auto_failover_max_ping">%1$d</string>
     <string name="error_failover_max_ping_range">Enter a value from 100 to 3000 ms.</string>
     <string name="title_service_apps_settings">Apps for DNS/VPN switch</string>
-    <string name="summary_service_apps_settings">Choose apps controlled by the home screen switch.</string>
+    <string name="summary_service_apps_settings">Choose additional apps.</string>
     <string name="title_service_apps_selection">Choose apps for DNS/VPN switch</string>
     <string name="summary_service_apps_selection">When bypass is on, additional apps use phone DNS. When off, they use VPN subject to the permanent app and domain split-tunneling rules. Permanent app rules take priority for overlaps.</string>
-    <string name="title_service_apps_route">Selected apps routing</string>
     <string name="service_apps_bypass_label">Bypass VPN</string>
-    <string name="service_apps_summary_empty">Choose apps with the settings button.</string>
-    <string name="service_apps_summary_direct">%1$d additional apps use the phone network and Private DNS; permanent split-tunneling rules stay in effect.</string>
-    <string name="service_apps_summary_vpn">%1$d additional apps use VPN subject to permanent app and domain split-tunneling rules.</string>
-    <string name="service_apps_summary_static">All selected apps already have a permanent split-tunneling route, which takes priority.</string>
+    <string name="summary_service_apps_route">Phone network / VPN</string>
+    <string name="service_apps_route_no_selection">Choose apps first</string>
+    <string name="service_apps_route_static">Permanent rule applies</string>
+    <string name="service_apps_route_requires_vpn">Available in VPN mode only</string>
+    <string name="service_apps_route_scanning">Checking profile…</string>
     <string name="service_apps_summary_requires_vpn">This switch is available in VPN mode only.</string>
     <string name="service_apps_no_selection">Select at least one app first.</string>
     <string name="service_apps_no_eligible_profile">No working profile with a verified non-Russian exit IP was found. The apps remain in bypass mode.</string>

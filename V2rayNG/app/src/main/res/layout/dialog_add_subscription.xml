@@ -35,7 +35,8 @@
                 android:id="@+id/et_sub_url"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textUri" />
+                android:inputType="textUri|textMultiLine"
+                android:minLines="2" />
 
         </com.google.android.material.textfield.TextInputLayout>
 

@@ -145,14 +145,12 @@
             android:inputType="number"
             android:key="pref_auto_failover_quarantine_minutes"
             android:defaultValue="45"
-            android:summary="@string/summary_pref_auto_failover_quarantine_minutes"
             android:title="@string/title_pref_auto_failover_quarantine_minutes" />
 
         <EditTextPreference
             android:inputType="number"
             android:key="pref_auto_failover_max_ping_ms"
             android:defaultValue="1500"
-            android:summary="@string/summary_pref_auto_failover_max_ping"
             android:title="@string/title_pref_auto_failover_max_ping" />
 
         <!-- Smart Failover (пассивный мониторинг трафика) -->
@@ -249,6 +247,12 @@
             android:summary="@string/summary_pref_auto_update_subscription"
             android:title="@string/title_pref_auto_update_subscription" />
         <EditTextPreference
+            android:defaultValue="@string/default_profile_subscription_source"
+            android:inputType="textUri|textMultiLine"
+            android:key="pref_profile_subscription_sources"
+            android:summary="@string/summary_profile_subscription_sources"
+            android:title="@string/title_profile_subscription_sources" />
+        <EditTextPreference
             android:inputType="number"
             android:key="pref_auto_update_interval"
             android:summary="60"
@@ -325,6 +329,12 @@
             android:key="pref_service_apps_settings"
             android:summary="@string/summary_service_apps_settings"
             android:title="@string/title_service_apps_settings" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_service_apps_bypass"
+            android:summary="@string/summary_service_apps_route"
+            android:title="@string/service_apps_bypass_label" />
 
         <!-- Domain-based split tunneling — отключено по умолчанию, гранулярная настройка -->
         <CheckBoxPreference
