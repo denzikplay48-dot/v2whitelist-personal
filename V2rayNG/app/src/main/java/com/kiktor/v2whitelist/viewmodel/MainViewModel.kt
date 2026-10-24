@@ -287,6 +287,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         )
         subscriptions.forEach { sub ->
+            if (sub.guid == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_GUID) return@forEach
             groups.add(GroupMapItem(id = sub.guid, remarks = sub.subscription.remarks))
         }
         return groups

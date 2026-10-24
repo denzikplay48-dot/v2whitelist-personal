@@ -56,6 +56,7 @@ class MainActivity : HelperBaseActivity() {
     companion object {
         const val EXTRA_START_YANDEX_UPDATE = "EXTRA_START_YANDEX_UPDATE"
         const val EXTRA_AUTO_CONNECT = "EXTRA_AUTO_CONNECT"
+        const val EXTRA_CONNECT_SERVER_GUID = "EXTRA_CONNECT_SERVER_GUID"
     }
 
     private val binding by lazy {
@@ -253,6 +254,7 @@ class MainActivity : HelperBaseActivity() {
         checkBatteryOptimization()
         checkAppUpdate()
         checkAndShowOnboardingPurpose()
+        handleConnectProfileIntent(intent)
     }
 
     private fun checkAndShowOnboardingPurpose() {
@@ -524,6 +526,31 @@ class MainActivity : HelperBaseActivity() {
                 }
             }
             startConnectFlow()
+        }
+    }
+
+    private fun handleConnectProfileIntent(intent: Intent?) {
+        val guid = intent?.getStringExtra(EXTRA_CONNECT_SERVER_GUID) ?: return
+        intent.removeExtra(EXTRA_CONNECT_SERVER_GUID)
+        binding.root.post {
+            if (MmkvManager.decodeServerConfig(guid) == null) {
+                toast(R.string.local_profile_missing)
+                return@post
+            }
+
+            MmkvManager.setSelectServer(guid)
+            MmkvManager.saveLastConnectedServer(guid)
+            mainViewModel.reloadServerList()
+
+            if (mainViewModel.isRunning.value == true || V2RayServiceManager.isRunning()) {
+                com.kiktor.v2whitelist.util.MessageUtil.sendMsg2Service(
+                    this,
+                    AppConfig.MSG_STATE_SWITCH_SERVER,
+                    ""
+                )
+            } else {
+                startV2Ray()
+            }
         }
     }
 
@@ -1094,6 +1121,8 @@ class MainActivity : HelperBaseActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        handleConnectProfileIntent(intent)
         processDeepLink(intent)
         if (intent.getBooleanExtra(EXTRA_START_YANDEX_UPDATE, false)) {
             intent.removeExtra(EXTRA_START_YANDEX_UPDATE)

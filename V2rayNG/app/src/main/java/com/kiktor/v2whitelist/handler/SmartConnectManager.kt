@@ -230,7 +230,9 @@ object SmartConnectManager {
             if (isAutoUpdateEnabled) {
                 // Ищем самую старую подписку среди включенных (или 0, если еще не обновляли)
                 val allSubs = MmkvManager.decodeSubscriptions()
-                val oldestUpdate = allSubs.filter { it.subscription.enabled }
+                val oldestUpdate = allSubs.filter {
+                    it.subscription.enabled && it.guid != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_GUID
+                }
                     .minOfOrNull { it.subscription.lastUpdated } ?: 0L
 
                 if (System.currentTimeMillis() - oldestUpdate > UPDATE_INTERVAL_MS) {

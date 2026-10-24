@@ -140,6 +140,7 @@ object SubscriptionHelper {
         if (changed) {
             MmkvManager.encodeSettings(AppConfig.PREF_CUSTOM_SUB_URLS, com.kiktor.v2whitelist.util.JsonUtil.toJson(customSubs))
         }
+        ensureLocalProfilesSubscription(context)
         MmkvManager.encodeSettings("pref_defaults_added_v1", true)
 
         // Санитизация: для всех отключенных подписок сбрасываем lastUpdated и удаляем остаточные серверы
@@ -176,7 +177,9 @@ object SubscriptionHelper {
      */
     private suspend fun setupCustomSubscriptions(context: Context) {
         val customSubs = loadCustomSubs()
-        for (sub in customSubs.filter { it.enabled }) {
+        for (sub in customSubs.filter {
+            it.enabled && it.id != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID
+        }) {
             val subId = "custom_sub_${sub.id}"
             val subscriptions = MmkvManager.decodeSubscriptions()
             val existing = subscriptions.find { it.guid == subId }
@@ -234,37 +237,83 @@ object SubscriptionHelper {
         }
     }
 
+    /** Keeps the device-local profile group visible without treating it as a network feed. */
+    fun ensureLocalProfilesSubscription(context: Context) {
+        val customSubs = loadCustomSubs().toMutableList()
+        val localSub = customSubs.firstOrNull { it.id == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID }
+        if (localSub == null) {
+            customSubs.add(
+                0,
+                CustomSubData(
+                    id = AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID,
+                    name = context.getString(R.string.local_profiles_subscription_name),
+                    enabled = true
+                )
+            )
+            MmkvManager.encodeSettings(
+                AppConfig.PREF_CUSTOM_SUB_URLS,
+                com.kiktor.v2whitelist.util.JsonUtil.toJson(customSubs)
+            )
+        } else if (!localSub.enabled || localSub.url.isNotBlank()) {
+            localSub.enabled = true
+            localSub.url = ""
+            MmkvManager.encodeSettings(
+                AppConfig.PREF_CUSTOM_SUB_URLS,
+                com.kiktor.v2whitelist.util.JsonUtil.toJson(customSubs)
+            )
+        }
+
+        val subscription = MmkvManager.decodeSubscription(AppConfig.LOCAL_PROFILES_SUBSCRIPTION_GUID)
+            ?: SubscriptionItem()
+        if (subscription.remarks != context.getString(R.string.local_profiles_subscription_name) ||
+            subscription.url.isNotEmpty() || !subscription.enabled
+        ) {
+            subscription.remarks = context.getString(R.string.local_profiles_subscription_name)
+            subscription.url = ""
+            subscription.enabled = true
+            MmkvManager.encodeSubscription(AppConfig.LOCAL_PROFILES_SUBSCRIPTION_GUID, subscription)
+        }
+    }
+
     /**
      * Uses newline-separated URLs as independent sources for the built-in profile feed.
-     * The original URL expands to its existing mirror list; additional URLs are loaded
-     * independently and their profiles are appended to the same subscription.
+     * The old single default URL is migrated to the complete built-in mirror list.
      */
     private fun applyConfiguredProfileSources(subs: MutableList<CustomSubData>): Boolean {
         val profileSub = subs.find { it.id == "def_zieng2" } ?: return false
-        val sourceText = MmkvManager.decodeSettingsString(
-            AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES,
-            AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
-        ) ?: AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
-        val configuredSources = sourceText.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
-            .toList()
-        if (configuredSources.isEmpty()) return false
-
-        val originalFeed = DefaultSubscriptions.PREPOPULATED_SUBS
+        val defaultSources = DefaultSubscriptions.PREPOPULATED_SUBS
             .firstOrNull { it.id == "def_zieng2" }
             ?.url
-            ?: AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE
-        val sourceGroups = configuredSources.map { source ->
+            ?.split('|')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+        if (defaultSources.isEmpty()) return false
+        val defaultSourceText = defaultSources.joinToString("\n")
+        val sourceText = MmkvManager.decodeSettingsString(
+            AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES,
+            defaultSourceText
+        ) ?: defaultSourceText
+        val configuredLines = sourceText.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toList()
+        if (configuredLines.isEmpty()) return false
+
+        var migratedLegacySource = false
+        val configuredSources = configuredLines.flatMap { source ->
             if (source.equals(AppConfig.DEFAULT_PROFILE_SUBSCRIPTION_SOURCE, ignoreCase = true)) {
-                originalFeed
+                migratedLegacySource = true
+                defaultSources
             } else {
-                source
+                listOf(source)
             }
+        }.distinct()
+        val combinedSources = configuredSources.joinToString("\n")
+        if (migratedLegacySource && sourceText != combinedSources) {
+            MmkvManager.encodeSettings(AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES, combinedSources)
         }
-        val combinedSources = sourceGroups.joinToString("\n")
-        if (profileSub.url == combinedSources) return false
+        if (profileSub.url == combinedSources) return migratedLegacySource
         profileSub.url = combinedSources
         return true
     }
@@ -735,7 +784,9 @@ object SubscriptionHelper {
 
         // Обновляем кастомные подписки
         val customSubs = loadCustomSubs()
-        val enabledCustomSubs = customSubs.filter { it.enabled }
+        val enabledCustomSubs = customSubs.filter {
+            it.enabled && it.id != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID
+        }
         val allSubscriptions = MmkvManager.decodeSubscriptions()
         val regularSubs = allSubscriptions.filter { !it.guid.startsWith("custom_sub_") && it.subscription.enabled }
         val totalSubs = enabledCustomSubs.size + regularSubs.size

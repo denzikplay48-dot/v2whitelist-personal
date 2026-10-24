@@ -644,6 +644,28 @@
     <!-- Custom Subscriptions -->
     <string name="custom_sub_empty">Нет добавленных подписок</string>
     <string name="custom_sub_added">Подписка добавлена</string>
+    <string name="local_profiles_subscription_name">Локальные профили</string>
+    <string name="local_profiles_subscription_summary">Профили с устройства и из остальных подписок</string>
+    <string name="local_profiles_title">Локальные профили</string>
+    <string name="local_profiles_empty">Профилей пока нет. Импортируйте VLESS, VMess, Hysteria2 или другой поддерживаемый профиль.</string>
+    <string name="local_profile_add">Добавить профили</string>
+    <string name="local_profile_import_clipboard">Вставить из буфера обмена</string>
+    <string name="local_profile_import_qr">Сканировать QR профиля</string>
+    <string name="local_profile_import_file">Импортировать из файла</string>
+    <string name="local_profile_import_text">Вставить текст профиля</string>
+    <string name="local_profile_import_hint">Вставьте одну или несколько ссылок на профили, по одной в строке</string>
+    <string name="local_profile_clipboard_empty">Буфер обмена пуст</string>
+    <string name="local_profile_file_empty">Файл пуст или его не удалось прочитать</string>
+    <string name="local_profile_origin_local">Сохранён на устройстве</string>
+    <string name="local_profile_origin_subscription">Подписка</string>
+    <string name="local_profile_origin_format">%1$s • %2$s</string>
+    <string name="local_profile_address_unavailable">Адрес недоступен</string>
+    <string name="local_profile_connect">Подключиться</string>
+    <string name="local_profile_show_qr">Показать QR</string>
+    <string name="local_profile_qr_unavailable">Для этого профиля нельзя создать QR-код</string>
+    <string name="local_profile_missing">Профиль больше недоступен</string>
+    <string name="local_profile_disconnect_before_delete">Перед удалением отключитесь от этого профиля</string>
+    <string name="local_profile_delete_confirm">Удалить этот профиль из локального хранилища?</string>
     <string name="custom_sub_removed">Подписка удалена</string>
 
     <!-- Update Dialog & OTA Notifications -->

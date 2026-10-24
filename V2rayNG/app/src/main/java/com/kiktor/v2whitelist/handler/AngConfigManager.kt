@@ -196,6 +196,22 @@ object AngConfigManager {
         return count to countSub
     }
 
+    /** Imports server profiles into the given group without interpreting URL lines as subscriptions. */
+    fun importProfilesOnly(server: String?, subid: String): Int {
+        val decoded = Utils.decode(server)
+        var count = parseBatchConfig(decoded, subid, true)
+        if (count <= 0 && decoded != server) {
+            count = parseBatchConfig(server, subid, true)
+        }
+        if (count <= 0) {
+            count = parseCustomConfigServer(server, subid)
+        }
+        if (count <= 0 && decoded != server) {
+            count = parseCustomConfigServer(decoded, subid)
+        }
+        return count
+    }
+
     /**
      * Parses a batch of subscriptions.
      *

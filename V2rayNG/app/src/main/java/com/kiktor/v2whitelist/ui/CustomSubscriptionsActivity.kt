@@ -40,6 +40,7 @@ class CustomSubscriptionsActivity : BaseActivity() {
         tvEmpty = findViewById(R.id.tv_empty)
         rvSubscriptions = findViewById(R.id.rv_subscriptions)
 
+        com.kiktor.v2whitelist.handler.SubscriptionHelper.ensureLocalProfilesSubscription(this)
         setupAddButton()
         loadCustomSubs()
         setupRecyclerView()
@@ -212,6 +213,8 @@ class CustomSubscriptionsActivity : BaseActivity() {
                         .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.subscriptionId }
                         .groupingBy { it }
                         .eachCount()
+                    val totalProfileCount = MmkvManager.decodeServerList()
+                        .count { guid -> MmkvManager.decodeServerConfig(guid) != null }
                     customSubs.forEach { sub ->
                         val realSub = allSubs.find { it.guid == "custom_sub_${sub.id}" || it.guid == sub.id }
                         if (!sub.enabled) {
@@ -227,8 +230,11 @@ class CustomSubscriptionsActivity : BaseActivity() {
                             sub.lastUpdated = realSub?.subscription?.lastUpdated ?: 0L
                             sub.lastUpdateFailed = (realSub?.subscription?.lastUpdateFailed ?: false) && sub.enabled
                         }
-                        sub.profileCount = setOf("custom_sub_${sub.id}", sub.id)
-                            .sumOf { profileCounts[it] ?: 0 }
+                        sub.profileCount = if (sub.id == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID) {
+                            totalProfileCount
+                        } else {
+                            setOf("custom_sub_${sub.id}", sub.id).sumOf { profileCounts[it] ?: 0 }
+                        }
 
                         if (sub.targetScenarios.isEmpty()) {
                             val defaultMatch = com.kiktor.v2whitelist.handler.DefaultSubscriptions.PREPOPULATED_SUBS.find { it.id == sub.id }
@@ -329,7 +335,11 @@ class CustomSubscriptionsActivity : BaseActivity() {
                 toast(R.string.custom_sub_removed)
             },
             onEdit = { position ->
-                showAddDialog(customSubs[position])
+                if (customSubs[position].id == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID) {
+                    startActivity(Intent(this, LocalProfilesActivity::class.java))
+                } else {
+                    showAddDialog(customSubs[position])
+                }
             },
             onMoveCompleted = {
                 saveCustomSubs()
@@ -356,12 +366,18 @@ class CustomSubscriptionsActivity : BaseActivity() {
     }
 
     private fun refreshProfileCounts(notify: Boolean) {
-        val profileCounts = MmkvManager.decodeServerList()
+        val serverList = MmkvManager.decodeServerList()
+        val profileCounts = serverList
             .mapNotNull { guid -> MmkvManager.decodeServerConfig(guid)?.subscriptionId }
             .groupingBy { it }
             .eachCount()
+        val totalProfileCount = serverList.count { guid -> MmkvManager.decodeServerConfig(guid) != null }
         customSubs.forEach { sub ->
-            sub.profileCount = setOf("custom_sub_${sub.id}", sub.id).sumOf { profileCounts[it] ?: 0 }
+            sub.profileCount = if (sub.id == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID) {
+                totalProfileCount
+            } else {
+                setOf("custom_sub_${sub.id}", sub.id).sumOf { profileCounts[it] ?: 0 }
+            }
         }
         if (notify && this::adapter.isInitialized) adapter.notifyDataSetChanged()
     }

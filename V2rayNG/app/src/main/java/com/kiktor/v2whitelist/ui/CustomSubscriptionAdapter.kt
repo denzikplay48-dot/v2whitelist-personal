@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.kiktor.v2whitelist.R
+import com.kiktor.v2whitelist.AppConfig
 import com.kiktor.v2whitelist.extension.toast
 import com.kiktor.v2whitelist.helper.ItemTouchHelperAdapter
 import com.kiktor.v2whitelist.helper.ItemTouchHelperViewHolder
@@ -52,19 +53,39 @@ class CustomSubscriptionAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
-        holder.tvName.text = item.name
-        holder.tvUrl.text = item.url.lineSequence()
-            .map { it.substringBefore('|').trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString("\n")
-        holder.tvProfileCount.text = holder.itemView.context.getString(R.string.subscription_profile_count, item.profileCount)
+        val isLocalProfiles = item.id == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID
+        holder.tvName.text = if (isLocalProfiles) {
+            holder.itemView.context.getString(R.string.local_profiles_subscription_name)
+        } else {
+            item.name
+        }
+        holder.tvUrl.text = if (isLocalProfiles) {
+            holder.itemView.context.getString(R.string.local_profiles_subscription_summary)
+        } else {
+            item.url.lineSequence()
+                .map { it.substringBefore('|').trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n")
+        }
         holder.tvUrl.setOnLongClickListener {
+            if (isLocalProfiles) return@setOnLongClickListener false
             Utils.setClipboard(holder.itemView.context, item.url.replace("|", "\n"))
             holder.itemView.context.toast(R.string.toast_subscription_sources_copied)
             true
         }
-        
-        if (item.lastUpdateFailed && item.enabled) {
+        holder.tvProfileCount.text = holder.itemView.context.getString(R.string.subscription_profile_count, item.profileCount)
+
+        if (isLocalProfiles) {
+            holder.tvLastUpdate.visibility = View.GONE
+            holder.cardView.strokeWidth = 0
+            holder.tvScenarios.visibility = View.GONE
+            holder.switchEnabled.visibility = View.GONE
+            holder.btnDelete.visibility = View.GONE
+        } else if (item.lastUpdateFailed && item.enabled) {
+            holder.tvLastUpdate.visibility = View.VISIBLE
+            holder.tvScenarios.visibility = View.VISIBLE
+            holder.switchEnabled.visibility = View.VISIBLE
+            holder.btnDelete.visibility = View.VISIBLE
             val redColor = ContextCompat.getColor(holder.itemView.context, android.R.color.holo_red_light)
             holder.tvLastUpdate.text = holder.itemView.context.getString(R.string.sub_update_failed)
             holder.tvLastUpdate.setTextColor(redColor)
@@ -72,6 +93,10 @@ class CustomSubscriptionAdapter(
             holder.cardView.strokeColor = redColor
             holder.cardView.strokeWidth = (holder.itemView.context.resources.displayMetrics.density * 1.5f).toInt()
         } else {
+            holder.tvLastUpdate.visibility = View.VISIBLE
+            holder.tvScenarios.visibility = View.VISIBLE
+            holder.switchEnabled.visibility = View.VISIBLE
+            holder.btnDelete.visibility = View.VISIBLE
             holder.cardView.strokeWidth = 0
             holder.tvLastUpdate.setTextColor(holder.tvUrl.textColors)
             if (item.lastUpdated > 0) {
@@ -99,7 +124,7 @@ class CustomSubscriptionAdapter(
             }
             holder.tvScenarios.text = scenarioLabels.joinToString(" • ")
         }
-        holder.tvScenarios.visibility = View.VISIBLE
+        holder.tvScenarios.visibility = if (isLocalProfiles) View.GONE else View.VISIBLE
 
         holder.switchEnabled.setOnCheckedChangeListener(null)
         holder.switchEnabled.isChecked = item.enabled

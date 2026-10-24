@@ -283,7 +283,7 @@
 
     <string name="title_pref_auto_update_subscription">Automatic update subscriptions</string>
     <string name="summary_pref_auto_update_subscription">Update your subscriptions automatically at set intervals in the background. Depending on the device, this feature may not always work</string>
-    <string name="default_profile_subscription_source" translatable="false">https://hub.mos.ru/zieng2/wl/raw/main/list_universal.txt</string>
+    <string name="default_profile_subscription_source" translatable="false">https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt\nhttps://codeberg.org/zieng2/wl/raw/branch/main/vless_universal.txt\nhttps://gitlab.com/zieng2/wl/raw/main/vless_universal.txt\nhttps://hub.mos.ru/zieng2/wl/raw/main/list_universal.txt\nhttps://gitverse.ru/api/repos/zieng2/wl/raw/branch/master/list_universal.txt</string>
     <string name="title_profile_subscription_sources">Profile sources</string>
     <string name="summary_profile_subscription_sources">One URL per line. Additional sources add profiles to the original subscription.</string>
     <string name="subscription_profile_count">Profiles: %1$d</string>
@@ -634,6 +634,28 @@
     <string name="custom_sub_empty">No custom subscriptions</string>
     <string name="custom_sub_added">Subscription added</string>
     <string name="custom_sub_removed">Subscription removed</string>
+    <string name="local_profiles_subscription_name">Local profiles</string>
+    <string name="local_profiles_subscription_summary">Device profiles and profiles from your other subscriptions</string>
+    <string name="local_profiles_title">Local profiles</string>
+    <string name="local_profiles_empty">No profiles yet. Import a VLESS, VMess, Hysteria2 or other supported profile.</string>
+    <string name="local_profile_add">Add profiles</string>
+    <string name="local_profile_import_clipboard">Paste from clipboard</string>
+    <string name="local_profile_import_qr">Scan profile QR</string>
+    <string name="local_profile_import_file">Import from file</string>
+    <string name="local_profile_import_text">Paste profile text</string>
+    <string name="local_profile_import_hint">Paste one or more profile links, one per line</string>
+    <string name="local_profile_clipboard_empty">Clipboard is empty</string>
+    <string name="local_profile_file_empty">The file is empty or could not be read</string>
+    <string name="local_profile_origin_local">Saved on this device</string>
+    <string name="local_profile_origin_subscription">Subscription</string>
+    <string name="local_profile_origin_format">%1$s • %2$s</string>
+    <string name="local_profile_address_unavailable">Address unavailable</string>
+    <string name="local_profile_connect">Connect</string>
+    <string name="local_profile_show_qr">Show QR</string>
+    <string name="local_profile_qr_unavailable">This profile cannot be shared as a QR code</string>
+    <string name="local_profile_missing">This profile is no longer available</string>
+    <string name="local_profile_disconnect_before_delete">Disconnect from this profile before deleting it</string>
+    <string name="local_profile_delete_confirm">Delete this profile from local storage?</string>
     <string name="title_last_update">Last updated: %s</string>
     <string name="title_last_update_never">Never</string>
     <string name="title_pref_check_update_now">Check for updates now</string>
