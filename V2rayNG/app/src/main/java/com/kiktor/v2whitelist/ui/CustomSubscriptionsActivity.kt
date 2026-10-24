@@ -394,6 +394,7 @@ class CustomSubscriptionsActivity : BaseActivity() {
         var lastUpdateFailed: Boolean = false,
         var targetScenarios: List<String> = emptyList(),
         var catalogSourceIds: List<String> = emptyList(),
+        var catalogDefaultsApplied: Boolean = false,
         @kotlin.jvm.Transient var profileCount: Int = 0
     )
 }

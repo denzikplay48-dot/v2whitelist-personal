@@ -16,10 +16,16 @@ class SubscriptionSourceAdapter(
 ) : RecyclerView.Adapter<SubscriptionSourceAdapter.ViewHolder>() {
 
     private val items = mutableListOf<SubscriptionSourcesManager.Source>()
+    private var interactionsEnabled = true
 
     fun submitItems(newItems: List<SubscriptionSourcesManager.Source>) {
         items.clear()
         items.addAll(newItems)
+        notifyDataSetChanged()
+    }
+
+    fun setInteractionsEnabled(enabled: Boolean) {
+        interactionsEnabled = enabled
         notifyDataSetChanged()
     }
 
@@ -43,10 +49,12 @@ class SubscriptionSourceAdapter(
             else -> context.getString(R.string.subscription_sources_count, source.subscriptionCount)
         }
         holder.remove.visibility = if (isBuiltin) View.GONE else View.VISIBLE
+        holder.remove.isEnabled = interactionsEnabled
         holder.remove.setOnClickListener { onRemove(source) }
 
         holder.enabled.setOnCheckedChangeListener(null)
         holder.enabled.isChecked = source.enabled
+        holder.enabled.isEnabled = interactionsEnabled
         holder.enabled.setOnCheckedChangeListener { _, checked -> onToggle(source, checked) }
     }
 

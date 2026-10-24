@@ -103,10 +103,15 @@ object SubscriptionSourcesManager {
         enabledCatalogIds: Set<String> = enabledCatalogSourceIds(),
         builtinEnabled: Boolean = isBuiltinSourceEnabled()
     ): Boolean {
-        if (DefaultSubscriptions.PREPOPULATED_SUBS.any { it.id == subId }) return builtinEnabled
+        if (isBuiltinSubscription(subId)) {
+            return builtinEnabled || catalogSourceIds.any { enabledCatalogIds.contains(it) }
+        }
         if (catalogSourceIds.isEmpty()) return true
         return catalogSourceIds.any { enabledCatalogIds.contains(it) }
     }
+
+    private fun isBuiltinSubscription(subId: String): Boolean =
+        DefaultSubscriptions.PREPOPULATED_SUBS.any { it.id == subId }
 
     fun disabledSubscriptionGuids(): Set<String> {
         val enabledCatalogIds = enabledCatalogSourceIds()
@@ -121,6 +126,18 @@ object SubscriptionSourcesManager {
             .toSet()
     }
 
+    /** Removes cached profiles for disabled sources when no active catalog needs checking first. */
+    fun pruneDisabledSources() {
+        val enabledSourceIds = enabledCatalogSourceIds()
+        if (enabledSourceIds.isEmpty()) {
+            val customSubs = SubscriptionHelper.loadCustomSubs().toMutableList()
+            if (pruneCatalogSubscriptions(customSubs, emptySet())) {
+                MmkvManager.encodeSettings(AppConfig.PREF_CUSTOM_SUB_URLS, JsonUtil.toJson(customSubs))
+            }
+        }
+        pruneBuiltinSubscriptions(preserveIfSourcesEnabled = enabledSourceIds.isNotEmpty())
+    }
+
     fun removeSource(sourceId: String) {
         val sources = loadSources()
         if (sources.removeAll { it.id == sourceId }) saveSources(sources)
@@ -133,6 +150,7 @@ object SubscriptionSourcesManager {
             if (!sub.catalogSourceIds.contains(sourceId)) continue
             sub.catalogSourceIds = sub.catalogSourceIds.filterNot { it == sourceId }
             if (sub.catalogSourceIds.isEmpty()) {
+                if (isBuiltinSubscription(sub.id)) continue
                 removedSubIds.add(sub.id)
                 iterator.remove()
             }
@@ -142,6 +160,7 @@ object SubscriptionSourcesManager {
             MmkvManager.removeSubscription("custom_sub_$id")
             MmkvManager.removeServerViaSubid("custom_sub_$id")
         }
+        pruneBuiltinSubscriptions(preserveIfSourcesEnabled = enabledCatalogSourceIds().isNotEmpty())
     }
 
     /** Fetches enabled catalogs one at a time and reconciles their subscription URLs. */
@@ -151,37 +170,58 @@ object SubscriptionSourcesManager {
 
     private suspend fun syncCatalogsLocked(force: Boolean): Int = withContext(Dispatchers.IO) {
         val sources = loadSources()
-        if (sources.none { it.enabled }) return@withContext 0
+        val enabledSources = sources.filter { it.enabled }
 
         val customSubs = SubscriptionHelper.loadCustomSubs().toMutableList()
-        val defaultUrls = DefaultSubscriptions.PREPOPULATED_SUBS
-            .flatMap { it.url.split('|', '\n') }
-            .mapNotNull(::normalizeFeedUrl)
-            .toSet()
+        val defaultSubIdsByUrl = DefaultSubscriptions.PREPOPULATED_SUBS
+            .flatMap { defaultSub ->
+                defaultSub.url.split('|', '\n').mapNotNull { url ->
+                    normalizeFeedUrl(url)?.let { it to defaultSub.id }
+                }
+            }
+            .groupBy({ it.first }, { it.second })
         var changedCount = 0
         var customSubsChanged = false
+        val unverifiedSourceIds = mutableSetOf<String>()
 
-        for (source in sources.filter { it.enabled }) {
+        for (source in enabledSources) {
             val now = System.currentTimeMillis()
             if (!force && source.lastSyncedAt > 0L && now - source.lastSyncedAt < 5 * 60 * 1000L) {
+                unverifiedSourceIds.add(source.id)
                 continue
             }
             val content = fetchCatalog(source.url)
-            if (content.isNullOrBlank()) {
+            if (content == null) {
                 source.lastError = "Unable to fetch catalog"
+                unverifiedSourceIds.add(source.id)
                 continue
             }
 
             val entries = parseCatalog(content)
-            if (entries.isEmpty()) {
+            val containsInvalidLines = content.lineSequence()
+                .map { it.trim() }
+                .any { it.isNotEmpty() && !it.startsWith("#") && normalizeFeedUrl(it.substringBeforeLast('#').trim()) == null }
+            if (entries.isEmpty() && containsInvalidLines) {
                 source.lastError = "No valid subscription URLs found"
+                unverifiedSourceIds.add(source.id)
                 continue
             }
 
             val currentSourceIds = mutableSetOf<String>()
             for (entry in entries) {
                 val normalizedUrl = normalizeFeedUrl(entry.url) ?: continue
-                if (defaultUrls.contains(normalizedUrl)) continue
+                val defaultSubIds = defaultSubIdsByUrl[normalizedUrl]
+                if (defaultSubIds != null) {
+                    for (defaultSubId in defaultSubIds) {
+                        val defaultSub = customSubs.firstOrNull { it.id == defaultSubId } ?: continue
+                        currentSourceIds.add(defaultSubId)
+                        if (!defaultSub.catalogSourceIds.contains(source.id)) {
+                            defaultSub.catalogSourceIds = (defaultSub.catalogSourceIds + source.id).distinct()
+                            customSubsChanged = true
+                        }
+                    }
+                    continue
+                }
 
                 val manualDuplicate = customSubs.firstOrNull { sub ->
                     sub.catalogSourceIds.isEmpty() && sub.id != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID &&
@@ -201,9 +241,11 @@ object SubscriptionSourcesManager {
                             enabled = true,
                             targetScenarios = listOf(
                                 SubscriptionHelper.SCENARIO_WHITELIST,
-                                SubscriptionHelper.SCENARIO_BLACKLIST
+                                SubscriptionHelper.SCENARIO_BLACKLIST,
+                                SubscriptionHelper.SCENARIO_YOUTUBE
                             ),
-                            catalogSourceIds = listOf(source.id)
+                            catalogSourceIds = listOf(source.id),
+                            catalogDefaultsApplied = true
                         )
                     )
                     customSubsChanged = true
@@ -218,6 +260,13 @@ object SubscriptionSourcesManager {
                         existing.url = normalizedUrl
                         customSubsChanged = true
                     }
+                    if (!existing.catalogDefaultsApplied) {
+                        existing.targetScenarios = (
+                            existing.targetScenarios + SubscriptionHelper.SCENARIO_YOUTUBE
+                        ).distinct()
+                        existing.catalogDefaultsApplied = true
+                        customSubsChanged = true
+                    }
                 }
             }
 
@@ -227,9 +276,11 @@ object SubscriptionSourcesManager {
                     sub.catalogSourceIds = sub.catalogSourceIds.filterNot { it == source.id }
                     customSubsChanged = true
                     if (sub.catalogSourceIds.isEmpty()) {
-                        customSubs.removeAll { it.id == sub.id }
-                        MmkvManager.removeSubscription("custom_sub_${sub.id}")
-                        MmkvManager.removeServerViaSubid("custom_sub_${sub.id}")
+                        if (!isBuiltinSubscription(sub.id)) {
+                            customSubs.removeAll { it.id == sub.id }
+                            MmkvManager.removeSubscription("custom_sub_${sub.id}")
+                            MmkvManager.removeServerViaSubid("custom_sub_${sub.id}")
+                        }
                     }
                 }
             }
@@ -239,11 +290,58 @@ object SubscriptionSourcesManager {
             source.lastError = ""
         }
 
+        if (pruneCatalogSubscriptions(customSubs, enabledSources.map { it.id }.toSet(), unverifiedSourceIds.isNotEmpty())) {
+            customSubsChanged = true
+        }
+        pruneBuiltinSubscriptions(preserveIfSourcesEnabled = unverifiedSourceIds.isNotEmpty())
+
         if (customSubsChanged) {
             MmkvManager.encodeSettings(AppConfig.PREF_CUSTOM_SUB_URLS, JsonUtil.toJson(customSubs))
         }
         saveSources(sources)
         changedCount
+    }
+
+    /** Keeps shared subscriptions while any enabled catalog has not yet been verified. */
+    private fun pruneCatalogSubscriptions(
+        customSubs: MutableList<SubscriptionHelper.CustomSubData>,
+        enabledSourceIds: Set<String>,
+        preserveDisabledOwnership: Boolean = false
+    ): Boolean {
+        var changed = false
+        for (sub in customSubs.toList()) {
+            if (sub.catalogSourceIds.isEmpty()) continue
+            if (preserveDisabledOwnership) continue
+
+            val enabledOwners = sub.catalogSourceIds.filter { it in enabledSourceIds }.distinct()
+            if (enabledOwners != sub.catalogSourceIds) {
+                sub.catalogSourceIds = enabledOwners
+                changed = true
+            }
+            if (enabledOwners.isEmpty()) {
+                if (!isBuiltinSubscription(sub.id)) {
+                    customSubs.removeAll { it.id == sub.id }
+                    MmkvManager.removeSubscription("custom_sub_${sub.id}")
+                }
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    private fun pruneBuiltinSubscriptions(preserveIfSourcesEnabled: Boolean = false) {
+        if (isBuiltinSourceEnabled()) return
+        val enabledSourceIds = enabledCatalogSourceIds()
+        if (preserveIfSourcesEnabled && enabledSourceIds.isNotEmpty()) return
+        val customSubs = SubscriptionHelper.loadCustomSubs().associateBy { it.id }
+        DefaultSubscriptions.PREPOPULATED_SUBS.forEach { defaultSub ->
+            val hasEnabledCatalogOwner = customSubs[defaultSub.id]
+                ?.catalogSourceIds
+                ?.any { it in enabledSourceIds } == true
+            if (!hasEnabledCatalogOwner) {
+                MmkvManager.removeSubscription("custom_sub_${defaultSub.id}")
+            }
+        }
     }
 
     private suspend fun fetchCatalog(url: String): String? {

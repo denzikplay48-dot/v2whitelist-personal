@@ -12,6 +12,7 @@ import com.kiktor.v2whitelist.R
 import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.SettingsManager
 import com.kiktor.v2whitelist.handler.SubscriptionHelper
+import com.kiktor.v2whitelist.handler.SubscriptionSourcesManager
 import java.util.Locale
 
 class LocationFilterActivity : BaseActivity() {
@@ -66,7 +67,7 @@ class LocationFilterActivity : BaseActivity() {
 
     private fun setupLocationList() {
         val groupRegexMap = getGroupRegexMap()
-        val disabledSubIds = SubscriptionHelper.loadCustomSubs().filter { !it.enabled }.map { "custom_sub_${it.id}" }.toSet()
+        val disabledSubIds = SubscriptionSourcesManager.disabledSubscriptionGuids()
 
         val allServers = MmkvManager.decodeServerList()
         val emojiCountMap = mutableMapOf<String, Int>()

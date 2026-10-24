@@ -44,7 +44,8 @@ object SubscriptionHelper {
         var sharePercent: Int? = null,
         var lastUpdateFailed: Boolean = false,
         var targetScenarios: List<String> = emptyList(),
-        var catalogSourceIds: List<String> = emptyList()
+        var catalogSourceIds: List<String> = emptyList(),
+        var catalogDefaultsApplied: Boolean = false
     )
 
     /**
@@ -707,7 +708,14 @@ object SubscriptionHelper {
      * @param sequential если true — последовательная подкачка (фоновый воркер),
      *                    false — параллельная гонка зеркал (UI).
      */
-    suspend fun updateSubscription(context: Context, isStartup: Boolean = false, sequential: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun updateSubscription(
+        context: Context,
+        isStartup: Boolean = false,
+        sequential: Boolean = false,
+        forceSourceSync: Boolean = false
+    ) = withContext(Dispatchers.IO) {
+        SubscriptionSourcesManager.pruneDisabledSources()
+
         // ══════════════════════════════════════════════════════════════════════
         // СНИМОК КЭШЕЙ ПЕРЕД ОБНОВЛЕНИЕМ
         // parseBatchConfig() удаляет ВСЕ старые серверы и создаёт НОВЫЕ GUID-ы.
@@ -764,6 +772,15 @@ object SubscriptionHelper {
             }
         }
 
+        var subscriptionsInitialized = false
+        var catalogsSynced = false
+        if (forceSourceSync) {
+            checkAndSetupSubscription(context)
+            subscriptionsInitialized = true
+            SubscriptionSourcesManager.syncCatalogs(force = true)
+            catalogsSynced = true
+        }
+
         val onlyViaVpn = MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUB_ONLY_VIA_VPN, false)
         val updateViaYandexOnBs = !onlyViaVpn && MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_VIA_YANDEX_ON_BS, false)
         val isBs = NetworkManager.checkInternetStatus() == 1
@@ -781,9 +798,9 @@ object SubscriptionHelper {
         }
 
         // Ensure base subscriptions are initialized if this is the first launch
-        checkAndSetupSubscription(context)
+        if (!subscriptionsInitialized) checkAndSetupSubscription(context)
         // Refresh catalog manifests sequentially before updating their child subscriptions.
-        SubscriptionSourcesManager.syncCatalogs()
+        if (!catalogsSynced) SubscriptionSourcesManager.syncCatalogs(force = forceSourceSync)
 
         // Обновляем кастомные подписки
         val customSubs = loadCustomSubs()

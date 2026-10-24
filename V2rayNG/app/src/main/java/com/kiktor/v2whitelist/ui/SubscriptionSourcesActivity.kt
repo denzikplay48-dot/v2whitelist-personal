@@ -24,6 +24,7 @@ class SubscriptionSourcesActivity : BaseActivity() {
     private lateinit var adapter: SubscriptionSourceAdapter
     private lateinit var progress: ProgressBar
     private lateinit var addButton: View
+    private var isUpdating = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +90,7 @@ class SubscriptionSourcesActivity : BaseActivity() {
                     return@setPositiveButton
                 }
                 refreshRows()
-                updateSubscriptions(showResult = true)
+                updateSubscriptions(showResult = true, forceSourceSync = true)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -103,7 +104,7 @@ class SubscriptionSourcesActivity : BaseActivity() {
         }
         refreshRows()
         MessageUtil.sendMsg2UI(this, AppConfig.MSG_STATE_RELOAD_SERVER_LIST, "")
-        if (enabled) updateSubscriptions(showResult = false)
+        updateSubscriptions(showResult = false, forceSourceSync = true)
     }
 
     private fun confirmRemoveSource(source: SubscriptionSourcesManager.Source) {
@@ -115,17 +116,25 @@ class SubscriptionSourcesActivity : BaseActivity() {
                 SubscriptionSourcesManager.removeSource(source.id)
                 refreshRows()
                 MessageUtil.sendMsg2UI(this, AppConfig.MSG_STATE_RELOAD_SERVER_LIST, "")
+                updateSubscriptions(showResult = false, forceSourceSync = true)
             }
             .show()
     }
 
-    private fun updateSubscriptions(showResult: Boolean) {
+    private fun updateSubscriptions(showResult: Boolean, forceSourceSync: Boolean = false) {
+        if (isUpdating) return
+        isUpdating = true
         progress.visibility = View.VISIBLE
         addButton.isEnabled = false
+        adapter.setInteractionsEnabled(false)
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    SubscriptionHelper.updateSubscription(this@SubscriptionSourcesActivity, sequential = true)
+                    SubscriptionHelper.updateSubscription(
+                        this@SubscriptionSourcesActivity,
+                        sequential = true,
+                        forceSourceSync = forceSourceSync
+                    )
                 }
                 if (showResult) toast(R.string.subscription_sources_added)
             } catch (e: Exception) {
@@ -133,7 +142,10 @@ class SubscriptionSourcesActivity : BaseActivity() {
             } finally {
                 progress.visibility = View.GONE
                 addButton.isEnabled = true
+                isUpdating = false
+                adapter.setInteractionsEnabled(true)
                 refreshRows()
+                MessageUtil.sendMsg2UI(this@SubscriptionSourcesActivity, AppConfig.MSG_STATE_RELOAD_SERVER_LIST, "")
             }
         }
     }
