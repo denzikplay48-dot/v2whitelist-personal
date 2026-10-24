@@ -246,12 +246,10 @@
             android:key="pref_auto_update_subscription"
             android:summary="@string/summary_pref_auto_update_subscription"
             android:title="@string/title_pref_auto_update_subscription" />
-        <EditTextPreference
-            android:defaultValue="@string/default_profile_subscription_source"
-            android:inputType="textUri|textMultiLine"
-            android:key="pref_profile_subscription_sources"
-            android:summary="@string/summary_profile_subscription_sources"
-            android:title="@string/title_profile_subscription_sources" />
+        <Preference
+            android:key="pref_subscription_sources_settings"
+            android:summary="@string/summary_subscription_sources_settings"
+            android:title="@string/title_subscription_sources_settings" />
         <EditTextPreference
             android:inputType="number"
             android:key="pref_auto_update_interval"

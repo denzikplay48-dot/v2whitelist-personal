@@ -283,9 +283,22 @@
 
     <string name="title_pref_auto_update_subscription">Automatic update subscriptions</string>
     <string name="summary_pref_auto_update_subscription">Update your subscriptions automatically at set intervals in the background. Depending on the device, this feature may not always work</string>
-    <string name="default_profile_subscription_source" translatable="false">https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt\nhttps://codeberg.org/zieng2/wl/raw/branch/main/vless_universal.txt\nhttps://gitlab.com/zieng2/wl/raw/main/vless_universal.txt\nhttps://hub.mos.ru/zieng2/wl/raw/main/list_universal.txt\nhttps://gitverse.ru/api/repos/zieng2/wl/raw/branch/master/list_universal.txt</string>
-    <string name="title_profile_subscription_sources">Profile sources</string>
-    <string name="summary_profile_subscription_sources">One URL per line. Additional sources add profiles to the original subscription.</string>
+    <string name="title_subscription_sources_settings">Subscription sources</string>
+    <string name="summary_subscription_sources_settings">Manage built-in and your subscription catalogs.</string>
+    <string name="subscription_sources_builtin">Built-in subscriptions</string>
+    <string name="subscription_sources_builtin_summary">Subscriptions included with the app</string>
+    <string name="subscription_sources_add">Add source</string>
+    <string name="subscription_sources_add_title">Add subscription catalog</string>
+    <string name="subscription_sources_url_hint">Catalog URL</string>
+    <string name="subscription_sources_count">%1$d subscriptions</string>
+    <string name="subscription_sources_loading">Loading subscription catalogs…</string>
+    <string name="subscription_sources_added">Subscription catalog added</string>
+    <string name="subscription_sources_invalid">Could not load a subscription catalog from this URL</string>
+    <string name="subscription_sources_duplicate">This source is already added</string>
+    <string name="subscription_sources_remove_title">Remove source?</string>
+    <string name="subscription_sources_remove_message">Subscriptions supplied only by this source will be removed.</string>
+    <string name="subscription_sources_remove">Remove source</string>
+    <string name="subscription_sources_format_hint">Catalog files use one subscription URL per line. Add #name after a URL to name it.</string>
     <string name="subscription_profile_count">Profiles: %1$d</string>
     <string name="toast_subscription_sources_copied">Source links copied</string>
     <string name="title_pref_update_sub_only_via_vpn">Update Subscriptions Only via VPN</string>
@@ -324,7 +337,7 @@
     <string name="title_service_apps_selection">Choose apps for DNS/VPN switch</string>
     <string name="summary_service_apps_selection">When bypass is on, additional apps use phone DNS. When off, they use VPN subject to the permanent app and domain split-tunneling rules. Permanent app rules take priority for overlaps.</string>
     <string name="service_apps_bypass_label">Bypass VPN</string>
-    <string name="summary_service_apps_route">Phone network / VPN</string>
+    <string name="summary_service_apps_route">VPN / phone network</string>
     <string name="service_apps_route_no_selection">Choose apps first</string>
     <string name="service_apps_route_static">Permanent rule applies</string>
     <string name="service_apps_route_requires_vpn">Available in VPN mode only</string>

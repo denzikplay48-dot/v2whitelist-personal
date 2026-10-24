@@ -393,6 +393,7 @@ class CustomSubscriptionsActivity : BaseActivity() {
         var sharePercent: Int? = null,
         var lastUpdateFailed: Boolean = false,
         var targetScenarios: List<String> = emptyList(),
+        var catalogSourceIds: List<String> = emptyList(),
         @kotlin.jvm.Transient var profileCount: Int = 0
     )
 }

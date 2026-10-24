@@ -43,7 +43,8 @@ object SubscriptionHelper {
         var lastUpdated: Long = 0L,
         var sharePercent: Int? = null,
         var lastUpdateFailed: Boolean = false,
-        var targetScenarios: List<String> = emptyList()
+        var targetScenarios: List<String> = emptyList(),
+        var catalogSourceIds: List<String> = emptyList()
     )
 
     /**
@@ -781,11 +782,19 @@ object SubscriptionHelper {
 
         // Ensure base subscriptions are initialized if this is the first launch
         checkAndSetupSubscription(context)
+        // Refresh catalog manifests sequentially before updating their child subscriptions.
+        SubscriptionSourcesManager.syncCatalogs()
 
         // Обновляем кастомные подписки
         val customSubs = loadCustomSubs()
+        val enabledCatalogSourceIds = SubscriptionSourcesManager.enabledCatalogSourceIds()
+        val builtinSourceEnabled = SubscriptionSourcesManager.isBuiltinSourceEnabled()
         val enabledCustomSubs = customSubs.filter {
-            it.enabled && it.id != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID
+            it.enabled &&
+                it.id != AppConfig.LOCAL_PROFILES_SUBSCRIPTION_ID &&
+                SubscriptionSourcesManager.isSubscriptionSourceEnabled(
+                    it.id, it.catalogSourceIds, enabledCatalogSourceIds, builtinSourceEnabled
+                )
         }
         val allSubscriptions = MmkvManager.decodeSubscriptions()
         val regularSubs = allSubscriptions.filter { !it.guid.startsWith("custom_sub_") && it.subscription.enabled }

@@ -15,6 +15,7 @@ import com.kiktor.v2whitelist.extension.toast
 import com.kiktor.v2whitelist.extension.toastSuccess
 import com.kiktor.v2whitelist.handler.AngConfigManager
 import com.kiktor.v2whitelist.handler.MmkvManager
+import com.kiktor.v2whitelist.handler.SubscriptionSourcesManager
 import com.kiktor.v2whitelist.util.Utils
 
 class ServerGroupActivity : BaseActivity() {
@@ -126,10 +127,12 @@ class ServerGroupActivity : BaseActivity() {
 
     private fun populateSubscriptionSpinner() {
         val subs = MmkvManager.decodeSubscriptions()
+        val disabledSubscriptionGuids = SubscriptionSourcesManager.disabledSubscriptionGuids()
         val displayList = mutableListOf(getString(R.string.filter_config_all)) //none
         subIds.clear()
         subIds.add("") // index 0 => All
         subs.forEach { sub ->
+            if (disabledSubscriptionGuids.contains(sub.guid)) return@forEach
             val name = when {
                 sub.subscription.remarks.isNotBlank() -> sub.subscription.remarks
                 else -> sub.guid

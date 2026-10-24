@@ -167,6 +167,8 @@ object AppConfig {
     const val PREF_CUSTOM_SUB_URLS = "pref_custom_sub_urls" // JSON array of custom sub configs
     const val PREF_REMOVED_CUSTOM_SUB_IDS = "pref_removed_custom_sub_ids" // JSON array of removed sub IDs
     const val PREF_PROFILE_SUBSCRIPTION_SOURCES = "pref_profile_subscription_sources"
+    const val PREF_SUBSCRIPTION_SOURCES = "pref_subscription_sources_v1"
+    const val PREF_BUILTIN_SUBSCRIPTION_SOURCE_ENABLED = "pref_builtin_subscription_source_enabled"
     const val DEFAULT_PROFILE_SUBSCRIPTION_SOURCE = "https://hub.mos.ru/zieng2/wl/raw/main/list_universal.txt"
     const val PREF_ONBOARDING_PURPOSE_SHOWN = "pref_onboarding_purpose_shown_v1_2_7" // Флаг разового показа опросника сценария (обновлен для v1.2.7)
     const val PREF_CURRENT_APP_SCENARIO = "pref_current_app_scenario" // Текущий выбранный сценарий (AppScenario.name)
@@ -224,7 +226,7 @@ object AppConfig {
     const val GITHUB_DOWNLOAD_URL = "$GITHUB_URL/%s/releases/latest/download"
     const val ANDROID_PACKAGE_NAME_LIST_URL = "$GITHUB_RAW_URL/2dust/androidpackagenamelist/master/proxy.txt"
     const val APP_URL = "$GITHUB_URL/2dust/v2rayNG"
-    const val APP_API_URL = "https://api.github.com/repos/NullCoreDeveloper/v2whitelist/releases"
+    const val APP_API_URL = "https://api.github.com/repos/denzikplay48-dot/v2whitelist-personal/releases"
     const val APP_ISSUES_URL = "$APP_URL/issues"
     const val APP_WIKI_MODE = "$APP_URL/wiki/Mode"
     const val APP_PRIVACY_POLICY = "$GITHUB_RAW_URL/2dust/v2rayNG/master/CR.md"

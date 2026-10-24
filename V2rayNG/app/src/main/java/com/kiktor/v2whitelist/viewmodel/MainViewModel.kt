@@ -24,6 +24,7 @@ import com.kiktor.v2whitelist.handler.AngConfigManager
 import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.SettingsManager
 import com.kiktor.v2whitelist.handler.SpeedtestManager
+import com.kiktor.v2whitelist.handler.SubscriptionSourcesManager
 import com.kiktor.v2whitelist.util.MessageUtil
 import com.kiktor.v2whitelist.util.Utils
 import kotlinx.coroutines.CoroutineScope
@@ -146,6 +147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     @Synchronized
     fun updateCache() {
         serversCache.clear()
+        val disabledSubscriptionGuids = SubscriptionSourcesManager.disabledSubscriptionGuids()
         for (guid in serverList) {
             val profile = MmkvManager.decodeServerConfig(guid) ?: continue
 //            var profile = MmkvManager.decodeProfileConfig(guid)
@@ -162,6 +164,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 //            }
 
             if (subscriptionId.isNotEmpty() && subscriptionId != profile.subscriptionId) {
+                continue
+            }
+
+            if (disabledSubscriptionGuids.contains(profile.subscriptionId)) {
                 continue
             }
 
@@ -273,8 +279,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun getSubscriptions(context: Context): List<GroupMapItem> {
         val subscriptions = MmkvManager.decodeSubscriptions()
+        val disabledSubscriptionGuids = SubscriptionSourcesManager.disabledSubscriptionGuids()
         if (subscriptionId.isNotEmpty()
-            && !subscriptions.map { it.guid }.contains(subscriptionId)
+            && (!subscriptions.map { it.guid }.contains(subscriptionId) || disabledSubscriptionGuids.contains(subscriptionId))
         ) {
             subscriptionIdChanged("")
         }
@@ -288,6 +295,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         subscriptions.forEach { sub ->
             if (sub.guid == AppConfig.LOCAL_PROFILES_SUBSCRIPTION_GUID) return@forEach
+            if (disabledSubscriptionGuids.contains(sub.guid)) return@forEach
             groups.add(GroupMapItem(id = sub.guid, remarks = sub.subscription.remarks))
         }
         return groups

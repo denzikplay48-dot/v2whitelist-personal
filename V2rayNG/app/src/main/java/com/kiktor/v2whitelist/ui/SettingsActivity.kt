@@ -120,27 +120,6 @@ class SettingsActivity : BaseActivity() {
 
             initPreferenceSummaries()
 
-            findPreference<EditTextPreference>(AppConfig.PREF_PROFILE_SUBSCRIPTION_SOURCES)?.let { preference ->
-                preference.summary = getString(R.string.summary_profile_subscription_sources)
-                preference.setOnPreferenceChangeListener { _, newValue ->
-                    val sourceLines = (newValue as? String)
-                        .orEmpty()
-                        .lineSequence()
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                        .toList()
-                    val valid = sourceLines.isNotEmpty() && sourceLines.all { source ->
-                        source.split('|').all { url ->
-                            Utils.isValidUrl(url.trim()) || Utils.isValidSubUrl(url.trim())
-                        }
-                    }
-                    if (!valid) {
-                        requireContext().toast(getString(R.string.toast_invalid_url))
-                    }
-                    valid
-                }
-            }
-
             findPreference<EditTextPreference>(AppConfig.PREF_AUTO_FAILOVER_QUARANTINE_MINUTES)?.let { preference ->
                 fun updateSummary(minutes: Int) {
                     preference.summary = minutes.toString()
@@ -270,6 +249,10 @@ class SettingsActivity : BaseActivity() {
             }
             findPreference<androidx.preference.Preference>(AppConfig.PREF_SERVICE_APPS_SETTINGS)?.setOnPreferenceClickListener {
                 startActivity(android.content.Intent(requireContext(), ServiceAppsActivity::class.java))
+                true
+            }
+            findPreference<androidx.preference.Preference>("pref_subscription_sources_settings")?.setOnPreferenceClickListener {
+                startActivity(android.content.Intent(requireContext(), SubscriptionSourcesActivity::class.java))
                 true
             }
             findPreference<androidx.preference.Preference>("pref_domain_split_tunneling_settings")?.setOnPreferenceClickListener {

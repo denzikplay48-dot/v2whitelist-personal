@@ -176,6 +176,9 @@
         <activity
             android:name=".ui.LocalProfilesActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.SubscriptionSourcesActivity"
+            android:exported="false" />
 
 
         <service

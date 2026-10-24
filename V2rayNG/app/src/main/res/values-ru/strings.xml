@@ -262,8 +262,22 @@
 
     <string name="title_pref_auto_update_subscription">Автоматически обновлять подписки</string>
     <string name="summary_pref_auto_update_subscription">Автоматическое обновление подписок в фоновом режиме с указанным интервалом. В зависимости от устройства эта функция может работать не всегда.</string>
-    <string name="title_profile_subscription_sources">Источники профилей</string>
-    <string name="summary_profile_subscription_sources">По одной ссылке на строку. Дополнительные ссылки добавляют профили к исходной подписке.</string>
+    <string name="title_subscription_sources_settings">Источники подписок</string>
+    <string name="summary_subscription_sources_settings">Управление встроенным и личными источниками подписок.</string>
+    <string name="subscription_sources_builtin">Предустановленные подписки</string>
+    <string name="subscription_sources_builtin_summary">Подписки, встроенные в приложение</string>
+    <string name="subscription_sources_add">Добавить источник</string>
+    <string name="subscription_sources_add_title">Добавить каталог подписок</string>
+    <string name="subscription_sources_url_hint">Ссылка на каталог</string>
+    <string name="subscription_sources_count">Подписок: %1$d</string>
+    <string name="subscription_sources_loading">Загружаю каталоги подписок…</string>
+    <string name="subscription_sources_added">Каталог подписок добавлен</string>
+    <string name="subscription_sources_invalid">Не удалось загрузить каталог подписок по этой ссылке</string>
+    <string name="subscription_sources_duplicate">Этот источник уже добавлен</string>
+    <string name="subscription_sources_remove_title">Удалить источник?</string>
+    <string name="subscription_sources_remove_message">Подписки, которые есть только в этом источнике, будут удалены.</string>
+    <string name="subscription_sources_remove">Удалить источник</string>
+    <string name="subscription_sources_format_hint">В каталоге указывай по одной ссылке на подписку в строке. После ссылки можно добавить #название.</string>
     <string name="subscription_profile_count">Профилей: %1$d</string>
     <string name="toast_subscription_sources_copied">Ссылки источников скопированы</string>
     <string name="title_pref_update_sub_only_via_vpn">Обновлять подписки только через VPN</string>
@@ -302,7 +316,7 @@
     <string name="title_service_apps_selection">Выбор приложений для DNS/VPN</string>
     <string name="summary_service_apps_selection">При включённом обходе дополнительные приложения используют сеть телефона. При выключенном — VPN с учётом постоянных правил приложений и доменов. Для совпадений приоритет у постоянных правил.</string>
     <string name="service_apps_bypass_label">Обход VPN</string>
-    <string name="summary_service_apps_route">Сеть телефона / VPN</string>
+    <string name="summary_service_apps_route">VPN / сеть телефона</string>
     <string name="service_apps_route_no_selection">Сначала выберите приложения</string>
     <string name="service_apps_route_static">Действует постоянное правило</string>
     <string name="service_apps_route_requires_vpn">Доступно только в VPN</string>

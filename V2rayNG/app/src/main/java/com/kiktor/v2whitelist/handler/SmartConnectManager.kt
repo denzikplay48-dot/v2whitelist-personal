@@ -70,7 +70,8 @@ object SmartConnectManager {
         val filter: String = "",
         val groupRegex: String = "",
         val enabled: Boolean = true,
-        val sharePercent: Int? = null
+        val sharePercent: Int? = null,
+        val catalogSourceIds: List<String> = emptyList()
     )
 
 
@@ -80,7 +81,13 @@ object SmartConnectManager {
         filterByScenario: Boolean = true,
         excludeQuarantined: Boolean = true
     ): List<Pair<String, ProfileItem>> {
-        val disabledSubIds = loadCustomSubs().filter { !it.enabled }.map { "custom_sub_${it.id}" }.toSet()
+        val enabledCatalogSourceIds = SubscriptionSourcesManager.enabledCatalogSourceIds()
+        val builtinSourceEnabled = SubscriptionSourcesManager.isBuiltinSourceEnabled()
+        val disabledSubIds = loadCustomSubs().filter {
+            !it.enabled || !SubscriptionSourcesManager.isSubscriptionSourceEnabled(
+                it.id, it.catalogSourceIds, enabledCatalogSourceIds, builtinSourceEnabled
+            )
+        }.map { "custom_sub_${it.id}" }.toSet()
         val quarantinedGuids = if (excludeQuarantined) MmkvManager.getActiveFailoverQuarantines().keys else emptySet()
         
         val filterMode = MmkvManager.decodeSettingsString(
