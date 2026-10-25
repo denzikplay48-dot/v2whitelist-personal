@@ -37,6 +37,10 @@
     <string name="status_updating_subscription">Updating server list…</string>
     <string name="status_no_servers">No servers found. Try updating the list.</string>
     <string name="status_no_internet">No internet connection.</string>
+    <string name="network_status_waiting">Waiting for a network check</string>
+    <string name="network_status_regular_vpn">Regular VPN</string>
+    <string name="network_status_whitelist">Whitelist mode</string>
+    <string name="network_status_unavailable">Network unavailable</string>
     <string name="status_waiting_for_network">No direct internet. Waiting for network…</string>
     <string name="status_jamming_detected">Possible internet jamming, looking for fast bypass servers… (may take a while)</string>
     <string name="status_updating_via_vpn">Updating subscription via active VPN…</string>
@@ -584,6 +588,9 @@
     <string name="location_filter_empty">No available locations. Update subscription.</string>
     <string name="location_filter_server_count">Servers: %d</string>
     <string name="location_filter_unknown">Unknown</string>
+    <string name="location_filter_exclude_russian_exit">Exclude Russian exit IPs</string>
+    <string name="location_filter_exclude_russian_exit_hint">Only verified non-Russian exits are accepted; unknown exit countries are rejected too.</string>
+    <string name="location_filter_profile_rejected">The selected profile is excluded by the location filter.</string>
 
     <!-- Geek Mode -->
     <string name="geek_mode_btn_ping_test">Ping Test</string>

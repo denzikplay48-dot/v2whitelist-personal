@@ -107,21 +107,7 @@ object SmartConnectManager {
             if (disabledSubIds.contains(profile.subscriptionId)) return@filter false
             if (filterInsecure && !profile.isSecure()) return@filter false
             if (profile.configType == com.kiktor.v2whitelist.enums.EConfigType.POLICYGROUP) return@filter false
-            
-            if (filterSet.isEmpty()) return@filter true
-            
-            val regexStr = groupRegexMap[profile.subscriptionId]
-            val tag = com.kiktor.v2whitelist.ui.LocationFilterActivity.resolveServerTag(profile.remarks, regexStr)
-            
-            when (filterMode) {
-                AppConfig.LOCATION_FILTER_MODE_EXCLUDE -> {
-                    !filterSet.contains(tag)
-                }
-                AppConfig.LOCATION_FILTER_MODE_WHITELIST -> {
-                    filterSet.contains(tag)
-                }
-                else -> true
-            }
+            isLocationFilterAllowed(profile, filterMode, filterSet, groupRegexMap)
         }
 
         if (!filterByScenario || basicFiltered.isEmpty()) {
@@ -166,6 +152,40 @@ object SmartConnectManager {
             // возвращаем все доступные базовые серверы, чтобы связь не прерывалась!
             GeekModeLogger.log("SmartConnect", "Scenario filtering: 0 servers matched $targetScenarios. Fallback to all ${basicFiltered.size} enabled servers")
             basicFiltered
+        }
+    }
+
+    fun isLocationFilterAllowed(guid: String): Boolean {
+        val profile = MmkvManager.decodeServerConfig(guid) ?: return false
+        val filterMode = MmkvManager.decodeSettingsString(
+            AppConfig.PREF_LOCATION_FILTER_MODE,
+            AppConfig.LOCATION_FILTER_MODE_EXCLUDE
+        ) ?: AppConfig.LOCATION_FILTER_MODE_EXCLUDE
+        val filterSet = MmkvManager.decodeSettingsStringSet(AppConfig.PREF_LOCATION_FILTER_SET)
+            ?: com.kiktor.v2whitelist.ui.LocationFilterActivity.getDefaultFilterSet()
+        return isLocationFilterAllowed(
+            profile,
+            filterMode,
+            filterSet,
+            com.kiktor.v2whitelist.ui.LocationFilterActivity.getGroupRegexMap()
+        )
+    }
+
+    private fun isLocationFilterAllowed(
+        profile: ProfileItem,
+        filterMode: String,
+        filterSet: Set<String>,
+        groupRegexMap: Map<String, String>
+    ): Boolean {
+        if (filterSet.isEmpty()) return true
+        val tag = com.kiktor.v2whitelist.ui.LocationFilterActivity.resolveServerTag(
+            profile.remarks,
+            groupRegexMap[profile.subscriptionId]
+        )
+        return when (filterMode) {
+            AppConfig.LOCATION_FILTER_MODE_EXCLUDE -> !filterSet.contains(tag)
+            AppConfig.LOCATION_FILTER_MODE_WHITELIST -> filterSet.contains(tag)
+            else -> true
         }
     }
 
@@ -268,6 +288,10 @@ object SmartConnectManager {
         GeekModeLogger.log("AutoBackup", "Checking ${backupGuids.size} saved reserve profile(s)")
         for (guid in backupGuids) {
             val profile = MmkvManager.decodeServerConfig(guid) ?: continue
+            if (!isLocationFilterAllowed(guid)) {
+                GeekModeLogger.log("AutoBackup", "Skipping reserve profile excluded by location filter: ${profile.remarks} ($guid)")
+                continue
+            }
             sendStatus(context, context.getString(R.string.status_testing_servers))
             val verified = NodeTesterManager.verifyProfile(
                 context,
@@ -339,7 +363,7 @@ object SmartConnectManager {
             }
 
             val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
-                ServiceAppsRoutingManager.requiresNonRussianExit()
+                ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
             if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
                 val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
                     context, 
@@ -453,7 +477,7 @@ object SmartConnectManager {
             }
 
             val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
-                ServiceAppsRoutingManager.requiresNonRussianExit()
+                ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
             if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
                 val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
                     context, 

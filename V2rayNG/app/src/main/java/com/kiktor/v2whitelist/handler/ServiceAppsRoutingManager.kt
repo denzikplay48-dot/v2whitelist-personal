@@ -23,6 +23,12 @@ object ServiceAppsRoutingManager {
 
     fun requiresNonRussianExit(): Boolean = switchablePackages().isNotEmpty() && !isBypassEnabled()
 
+    fun excludeRussianExitEnabled(): Boolean =
+        MmkvManager.decodeSettingsBool(AppConfig.PREF_EXCLUDE_RUSSIAN_EXIT_IP, false)
+
+    fun requiresNonRussianExitForSelection(): Boolean =
+        requiresNonRussianExit() || excludeRussianExitEnabled()
+
     fun isKnownNonRussianCountry(country: String?): Boolean {
         val value = country?.trim()?.replace('_', ' ')?.takeIf { it.isNotBlank() } ?: return false
         val normalized = value.uppercase(Locale.ROOT)

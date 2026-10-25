@@ -5,11 +5,13 @@ import android.os.Bundle
 import android.view.View
 import android.widget.RadioGroup
 import android.widget.TextView
+import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.kiktor.v2whitelist.AppConfig
 import com.kiktor.v2whitelist.R
 import com.kiktor.v2whitelist.handler.MmkvManager
+import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
 import com.kiktor.v2whitelist.handler.SettingsManager
 import com.kiktor.v2whitelist.handler.SubscriptionHelper
 import com.kiktor.v2whitelist.handler.SubscriptionSourcesManager
@@ -18,6 +20,7 @@ import java.util.Locale
 class LocationFilterActivity : BaseActivity() {
 
     private lateinit var rgFilterMode: RadioGroup
+    private lateinit var switchExcludeRussianExit: MaterialSwitch
     private lateinit var tvModeHint: TextView
     private lateinit var tvEmpty: TextView
     private lateinit var rvLocations: RecyclerView
@@ -28,12 +31,22 @@ class LocationFilterActivity : BaseActivity() {
         setContentViewWithToolbar(R.layout.activity_location_filter, showHomeAsUp = true, title = getString(R.string.title_location_filter))
 
         rgFilterMode = findViewById(R.id.rg_filter_mode)
+        switchExcludeRussianExit = findViewById(R.id.switch_exclude_russian_exit)
         tvModeHint = findViewById(R.id.tv_mode_hint)
         tvEmpty = findViewById(R.id.tv_empty)
         rvLocations = findViewById(R.id.rv_locations)
 
         setupFilterMode()
+        setupRussianExitFilter()
         setupLocationList()
+    }
+
+    private fun setupRussianExitFilter() {
+        switchExcludeRussianExit.isChecked =
+            ServiceAppsRoutingManager.excludeRussianExitEnabled()
+        switchExcludeRussianExit.setOnCheckedChangeListener { _, isChecked ->
+            MmkvManager.encodeSettings(AppConfig.PREF_EXCLUDE_RUSSIAN_EXIT_IP, isChecked)
+        }
     }
 
     private fun setupFilterMode() {
@@ -247,6 +260,7 @@ class LocationFilterActivity : BaseActivity() {
         }
 
         private val PROTOCOL_FALLBACK_REGEX = Regex("(?i)\\b(VLESS|VMESS|HYSTERIA2|HY2|TROJAN|SHADOWSOCKS|SS|WIREGUARD|WARP)\\b")
+        private val UNKNOWN_LOCATION_PATTERN = Regex("(?i)(🌐|\\bunknown\\b|неизвестн)")
 
         /**
          * Универсальное определение тега сервера:
@@ -265,6 +279,10 @@ class LocationFilterActivity : BaseActivity() {
             val textTag = extractTextCountryTag(remarks)
             if (!textTag.isNullOrEmpty()) {
                 return textTag
+            }
+
+            if (UNKNOWN_LOCATION_PATTERN.containsMatchIn(remarks)) {
+                return TAG_UNKNOWN
             }
 
             if (!regexStr.isNullOrEmpty()) {

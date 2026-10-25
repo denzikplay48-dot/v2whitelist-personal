@@ -340,6 +340,11 @@
     <string name="summary_pref_chunk_size">Сколько серверов тестировать за один проход (по умолчанию: 20)</string>
     <string name="title_pref_chunk_preset">Пресет распределения по умолчанию</string>
 
+    <string name="network_status_waiting">Статус появится после проверки сети</string>
+    <string name="network_status_regular_vpn">Обычный VPN</string>
+    <string name="network_status_whitelist">Режим белого списка</string>
+    <string name="network_status_unavailable">Сеть не доступна</string>
+
     <string name="title_smartconnect_settings">Настройка SmartConnect</string>
     <string name="title_pref_v2w_core_enabled">Использовать ядро v2w-core</string>
     <string name="summary_pref_v2w_core_enabled">Экспериментально. Массовое параллельное сканирование серверов для обхода DDoS-защиты и поиска лучших узлов в реальном времени.</string>
@@ -573,6 +578,9 @@
     <string name="location_filter_empty">Нет доступных локаций. Обновите подписку.</string>
     <string name="location_filter_server_count">Серверов: %d</string>
     <string name="location_filter_unknown">Неизвестные</string>
+    <string name="location_filter_exclude_russian_exit">Исключать российские IP выхода</string>
+    <string name="location_filter_exclude_russian_exit_hint">Разрешаются только проверенные IP не из России; неизвестная страна выхода тоже исключается.</string>
+    <string name="location_filter_profile_rejected">Профиль исключён фильтром локаций.</string>
 
     <!-- Geek Mode -->
     <string name="geek_mode_btn_ping_test">Пинг-тест</string>

@@ -77,9 +77,9 @@ object SmartFailoverManager {
      */
     fun startFailoverMonitor(service: Service) {
         val enabledByPreference = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false)
-        val requiredForServiceApps = ServiceAppsRoutingManager.requiresNonRussianExit()
-        if (!enabledByPreference && !requiredForServiceApps) {
-            Log.d(AppConfig.TAG, "Failover: disabled in preferences and not required by service-app routing")
+        val requiredNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
+        if (!enabledByPreference && !requiredNonRussianExit) {
+            Log.d(AppConfig.TAG, "Failover: disabled in preferences and no verified non-Russian exit is required")
             quickProbeOnNextStart.set(false)
             return
         }
@@ -251,7 +251,7 @@ object SmartFailoverManager {
         val delayMillis = delayProbe.await()
         val exitIp = exitIpProbe.await()
         val exitIpAvailable = exitIp != null
-        val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExit()
+        val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
         val delayProbePassed = delayMillis in 1L..maxAcceptedDelay
         val exitCountryAccepted = exitIpAvailable &&
             (!requireNonRussianExit || ServiceAppsRoutingManager.isKnownNonRussianCountry(exitIp?.country))
@@ -293,6 +293,10 @@ object SmartFailoverManager {
                 val backupGuids = AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true)
                 var nextGuid: String? = null
                 for (candidateGuid in backupGuids) {
+                    if (!SmartConnectManager.isLocationFilterAllowed(candidateGuid)) {
+                        GeekModeLogger.log("Failover", "Skipping reserve profile excluded by location filter: $candidateGuid")
+                        continue
+                    }
                     if (NodeTesterManager.verifyProfile(
                             service,
                             candidateGuid,
@@ -334,11 +338,16 @@ object SmartFailoverManager {
 
     /** Выбирает следующий доступный профиль, пропуская карантинные. */
     fun selectNextServer(currentGuid: String?): String? {
-        AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true).firstOrNull()?.let { guid ->
-            val profile = MmkvManager.decodeServerConfig(guid)
-            GeekModeLogger.log("Failover", "Selected verified reserve profile: ${profile?.remarks ?: guid} ($guid)")
-            return guid
-        }
+        // This synchronous notification action cannot verify a fresh exit IP before switching.
+        if (ServiceAppsRoutingManager.excludeRussianExitEnabled()) return null
+
+        AutoBackupManager.getBackupGuids(currentGuid, requireFresh = true)
+            .firstOrNull { SmartConnectManager.isLocationFilterAllowed(it) }
+            ?.let { guid ->
+                val profile = MmkvManager.decodeServerConfig(guid)
+                GeekModeLogger.log("Failover", "Selected verified reserve profile: ${profile?.remarks ?: guid} ($guid)")
+                return guid
+            }
 
         val fallback = SmartConnectManager.filterServers(
             MmkvManager.decodeServerList(),
@@ -356,10 +365,16 @@ object SmartFailoverManager {
      */
     suspend fun arbitratePhysicalNetwork(context: Context): PhysicalNetworkState {
         val checkEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_NETWORK_CHECK_ENABLED, true)
-        if (!checkEnabled) return PhysicalNetworkState.FULL_INTERNET // assume full internet if check is disabled
+        if (!checkEnabled) {
+            NetworkManager.updateNetworkStatus(NetworkManager.NetworkStatus.NORMAL)
+            return PhysicalNetworkState.FULL_INTERNET // assume full internet if check is disabled
+        }
 
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return PhysicalNetworkState.NO_INTERNET
+            ?: run {
+                NetworkManager.updateNetworkStatus(NetworkManager.NetworkStatus.UNAVAILABLE)
+                return PhysicalNetworkState.NO_INTERNET
+            }
 
         val networks = cm.allNetworks
         var physicalNet: android.net.Network? = null
@@ -372,7 +387,10 @@ object SmartFailoverManager {
             }
         }
 
-        if (physicalNet == null) return PhysicalNetworkState.NO_INTERNET
+        if (physicalNet == null) {
+            NetworkManager.updateNetworkStatus(NetworkManager.NetworkStatus.UNAVAILABLE)
+            return PhysicalNetworkState.NO_INTERNET
+        }
 
         var yaOk = false
         var googleOk = false
@@ -394,12 +412,20 @@ object SmartFailoverManager {
             googleOk = googleDef.await()
         }
 
-        return when {
+        val state = when {
             yaOk && googleOk -> PhysicalNetworkState.FULL_INTERNET
             !yaOk && googleOk -> PhysicalNetworkState.FULL_INTERNET  // зарубежный Wi-Fi
             yaOk && !googleOk -> PhysicalNetworkState.WHITELIST_ONLY // оператор блокирует внешний интернет
             else -> PhysicalNetworkState.NO_INTERNET
         }
+        NetworkManager.updateNetworkStatus(
+            when (state) {
+                PhysicalNetworkState.FULL_INTERNET -> NetworkManager.NetworkStatus.NORMAL
+                PhysicalNetworkState.WHITELIST_ONLY -> NetworkManager.NetworkStatus.WHITELIST_ONLY
+                PhysicalNetworkState.NO_INTERNET -> NetworkManager.NetworkStatus.UNAVAILABLE
+            }
+        )
+        return state
     }
 
     private fun checkDirectUrl(network: android.net.Network, urlStr: String, method: String, timeoutMs: Int): Boolean {

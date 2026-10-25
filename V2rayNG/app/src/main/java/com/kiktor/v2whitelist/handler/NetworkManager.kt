@@ -7,10 +7,26 @@ import com.kiktor.v2whitelist.AppConfig
 import com.kiktor.v2whitelist.R
 import com.kiktor.v2whitelist.util.MessageUtil
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.net.InetSocketAddress
 import java.net.Socket
 
 object NetworkManager {
+
+    enum class NetworkStatus {
+        NORMAL,
+        WHITELIST_ONLY,
+        UNAVAILABLE
+    }
+
+    private val mutableNetworkStatus = MutableStateFlow<NetworkStatus?>(null)
+    val networkStatus: StateFlow<NetworkStatus?> = mutableNetworkStatus.asStateFlow()
+
+    fun updateNetworkStatus(status: NetworkStatus) {
+        mutableNetworkStatus.value = status
+    }
 
     /**
      * Блокирует выполнение до тех пор, пока не появится реальный доступ в интернет (проверка dzen.ru).
@@ -47,7 +63,10 @@ object NetworkManager {
      */
     fun checkInternetStatus(): Int {
         val checkEnabled = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsBool(AppConfig.PREF_NETWORK_CHECK_ENABLED, true)
-        if (!checkEnabled) return 0 // OK
+        if (!checkEnabled) {
+            updateNetworkStatus(NetworkStatus.NORMAL)
+            return 0 // OK
+        }
 
         var url1 = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsString(AppConfig.PREF_NETWORK_CHECK_URL_1, "google.com") ?: "google.com"
         var url2 = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsString(AppConfig.PREF_NETWORK_CHECK_URL_2, "ya.ru") ?: "ya.ru"
@@ -62,11 +81,19 @@ object NetworkManager {
             Socket().use { it.connect(InetSocketAddress(url2, 443), 800); true }
         } catch (_: Exception) { false }
 
-        return when {
+        val status = when {
             googleOk && yandexOk -> 0   // Все отлично
             !googleOk && yandexOk -> 1  // Глушат (Яндекс жив, Гугл нет)
             else -> 2                   // Интернета нет совсем
         }
+        updateNetworkStatus(
+            when (status) {
+                0 -> NetworkStatus.NORMAL
+                1 -> NetworkStatus.WHITELIST_ONLY
+                else -> NetworkStatus.UNAVAILABLE
+            }
+        )
+        return status
     }
 
     /**

@@ -233,7 +233,7 @@ object NodeTesterManager {
                     return false
                 }
 
-                val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExit()
+                val requireNonRussianExit = ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
                 if (failoverEnabled || requireNonRussianExit) {
                     val exitInfo = SpeedtestManager.getRemoteIPDetailsViaSocks(port, timeout)
                     if (exitInfo == null) {

@@ -89,6 +89,18 @@
                 android:paddingLeft="@dimen/padding_spacing_dp24"
                 android:paddingRight="@dimen/padding_spacing_dp24">
 
+                <TextView
+                    android:id="@+id/tv_network_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:text="@string/network_status_waiting"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorPrimary"
+                    android:gravity="center" />
+
                 <!-- Status Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/status_card"

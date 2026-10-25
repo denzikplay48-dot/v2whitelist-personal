@@ -84,10 +84,17 @@ class GeekModeActivity : BaseActivity() {
 
                 launch {
                     viewModel.logs.collect { logsList ->
+                        val pageScrollY = binding.root.scrollY
                         binding.tvLogs.text = logsList.joinToString("\n")
-                        // Скроллим к низу только внутренний NestedScrollView с логами
                         val nsv = binding.logsScrollView
-                        nsv.post { nsv.fullScroll(android.view.View.FOCUS_DOWN) }
+                        nsv.post {
+                            val logContent = nsv.getChildAt(0)
+                            if (logContent != null) {
+                                nsv.scrollTo(0, logContent.height)
+                            }
+                            // Updating and scrolling the nested log view must not move the page.
+                            binding.root.post { binding.root.scrollTo(0, pageScrollY) }
+                        }
                     }
                 }
 

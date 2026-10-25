@@ -25,6 +25,7 @@ import com.kiktor.v2whitelist.handler.AngConfigManager
 import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.NodeTesterManager
 import com.kiktor.v2whitelist.handler.ServiceAppsRoutingManager
+import com.kiktor.v2whitelist.handler.SmartConnectManager
 import com.kiktor.v2whitelist.helper.SimpleItemTouchHelperCallback
 import com.kiktor.v2whitelist.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
@@ -227,8 +228,13 @@ class GroupServerFragment : BaseFragment<FragmentGroupServerBinding>() {
         val selected = MmkvManager.getSelectServer()
         if (guid == selected) return
 
+        if (!SmartConnectManager.isLocationFilterAllowed(guid)) {
+            ownerActivity.toast(R.string.location_filter_profile_rejected)
+            return
+        }
+
         val requireVerification = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
-            ServiceAppsRoutingManager.requiresNonRussianExit()
+            ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
         if (requireVerification) {
             val appContext = requireContext().applicationContext
             lifecycleScope.launch {

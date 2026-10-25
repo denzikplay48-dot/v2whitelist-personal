@@ -37,6 +37,7 @@ import com.kiktor.v2whitelist.extension.toastError
 import com.kiktor.v2whitelist.handler.AngConfigManager
 import com.kiktor.v2whitelist.handler.MmkvManager
 import com.kiktor.v2whitelist.handler.NotificationManager
+import com.kiktor.v2whitelist.handler.NetworkManager
 import com.kiktor.v2whitelist.handler.SettingsChangeManager
 import com.kiktor.v2whitelist.handler.SettingsManager
 import com.kiktor.v2whitelist.handler.SmartConnectManager
@@ -68,6 +69,7 @@ class MainActivity : HelperBaseActivity() {
     private var isTaskRunning = false
     private var isSubscriptionUpdating = false
     private var customEndpointCheckJob: Job? = null
+    private var networkStatusJob: Job? = null
     // true пока мы показываем сообщение об ошибке после провала SmartConnect (2.5с задержка)
     private var isShowingError = false
     private var watchdogJob: Job? = null
@@ -907,6 +909,7 @@ class MainActivity : HelperBaseActivity() {
         lastPalette = currentPalette
 
         updateSubscriptionStatusUI()
+        observeNetworkStatus()
 
         if (SmartConnectManager.isScanning.get()) {
             setConnectingState()
@@ -931,6 +934,28 @@ class MainActivity : HelperBaseActivity() {
             if (com.kiktor.v2whitelist.handler.NetworkManager.hasTunInterface()) {
                 Log.w(AppConfig.TAG, "onResume: Detected lingering zombie TUN interface! Cleaning up to restore internet...")
                 V2RayServiceManager.forceCleanupZombieVpn(this)
+            }
+        }
+    }
+
+    override fun onPause() {
+        networkStatusJob?.cancel()
+        networkStatusJob = null
+        super.onPause()
+    }
+
+    private fun observeNetworkStatus() {
+        networkStatusJob?.cancel()
+        networkStatusJob = lifecycleScope.launch {
+            NetworkManager.networkStatus.collect { networkState ->
+                binding.tvNetworkStatus.text = getString(
+                    when (networkState) {
+                        NetworkManager.NetworkStatus.NORMAL -> R.string.network_status_regular_vpn
+                        NetworkManager.NetworkStatus.WHITELIST_ONLY -> R.string.network_status_whitelist
+                        NetworkManager.NetworkStatus.UNAVAILABLE -> R.string.network_status_unavailable
+                        null -> R.string.network_status_waiting
+                    }
+                )
             }
         }
     }

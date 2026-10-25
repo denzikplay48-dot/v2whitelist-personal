@@ -114,6 +114,7 @@ object AppConfig {
     /** Location filter settings */
     const val PREF_LOCATION_FILTER_MODE = "pref_location_filter_mode" // "exclude" or "whitelist"
     const val PREF_LOCATION_FILTER_SET = "pref_location_filter_set"  // Set<String> of emoji flags
+    const val PREF_EXCLUDE_RUSSIAN_EXIT_IP = "pref_exclude_russian_exit_ip"
     const val LOCATION_FILTER_MODE_EXCLUDE = "exclude"
     const val LOCATION_FILTER_MODE_WHITELIST = "whitelist"
 
