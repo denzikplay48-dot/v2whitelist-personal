@@ -7,7 +7,6 @@ import com.kiktor.v2whitelist.AppConfig
 import com.kiktor.v2whitelist.BuildConfig
 import com.kiktor.v2whitelist.dto.CheckUpdateResult
 import com.kiktor.v2whitelist.dto.GitHubRelease
-import com.kiktor.v2whitelist.extension.concatUrl
 import com.kiktor.v2whitelist.util.HttpUtil
 import com.kiktor.v2whitelist.util.JsonUtil
 import kotlinx.coroutines.Dispatchers
@@ -18,29 +17,21 @@ import java.net.HttpURLConnection
 
 object UpdateCheckerManager {
     suspend fun checkForUpdate(includePreRelease: Boolean = false): CheckUpdateResult = withContext(Dispatchers.IO) {
-        val url = if (includePreRelease) {
-            AppConfig.APP_API_URL
-        } else {
-            AppConfig.APP_API_URL.concatUrl("latest")
-        }
-
-        var response = HttpUtil.getUrlContent(url, 5000)
-        if (response.isNullOrEmpty()) {
-            val httpPort = SettingsManager.getHttpPort()
-            response = HttpUtil.getUrlContent(url, 5000, httpPort)
-                ?: throw IllegalStateException("Failed to get response")
-        }
-
-        val latestRelease = if (includePreRelease) {
-            JsonUtil.fromJson(response, Array<GitHubRelease>::class.java)
-                ?.firstOrNull()
-                ?: throw IllegalStateException("No pre-release found")
-        } else {
-            JsonUtil.fromJson(response, GitHubRelease::class.java)
-        }
-        if (latestRelease == null) {
-            return@withContext CheckUpdateResult(hasUpdate = false)
-        }
+        val response = getGithubContent(
+            AppConfig.APP_API_URL,
+            getGithubConnectionPorts(),
+            timeoutMs = 12_000
+        )
+        val releases = JsonUtil.fromJson(response, Array<GitHubRelease>::class.java)
+            ?.filter { it.tagName.isNotBlank() }
+            .orEmpty()
+        val stableReleases = releases.filterNot { it.prerelease }
+        // This fork publishes its numbered releases as GitHub pre-releases. If there are no
+        // stable releases, still offer the newest fork build even when the beta option is off.
+        val eligibleReleases = if (includePreRelease || stableReleases.isEmpty()) releases else stableReleases
+        val latestRelease = eligibleReleases.maxWithOrNull { first, second ->
+            compareVersions(first.tagName.removePrefix("v"), second.tagName.removePrefix("v"))
+        } ?: throw IllegalStateException("No releases found in the GitHub repository")
 
         val latestVersion = latestRelease.tagName.removePrefix("v")
         Log.i(
@@ -68,87 +59,108 @@ object UpdateCheckerManager {
     }
 
     suspend fun downloadApk(context: Context, downloadUrl: String, onProgress: ((Int) -> Unit)? = null): File? = withContext(Dispatchers.IO) {
-        try {
-            val isRunning = com.kiktor.v2whitelist.handler.V2RayServiceManager.isRunning()
-            val httpPort = if (isRunning) SettingsManager.getHttpPort() else 0
-            val connection = HttpUtil.createProxyConnection(downloadUrl, httpPort, 10000, 10000, true)
-                ?: throw IllegalStateException("Failed to create connection")
+        for (port in getGithubConnectionPorts(preferProxy = true)) {
+            val apkFile = downloadApkViaPort(context, downloadUrl, port, onProgress)
+            if (apkFile != null) return@withContext apkFile
+        }
+        null
+    }
 
+    private fun getGithubConnectionPorts(preferProxy: Boolean = false): List<Int> {
+        if (!com.kiktor.v2whitelist.handler.V2RayServiceManager.isRunning()) return listOf(0)
+        val httpPort = SettingsManager.getHttpPort()
+        return if (preferProxy) listOf(httpPort, 0).distinct() else listOf(0, httpPort).distinct()
+    }
+
+    private fun getGithubContent(url: String, ports: List<Int>, timeoutMs: Int): String {
+        var lastError: Exception? = null
+        for (port in ports) {
             try {
-                val cacheFolder = context.externalCacheDir ?: context.cacheDir
-                val fileName = downloadUrl.substringAfterLast("/", "update.apk")
-                
-                // Clean up old APKs to prevent space leaks and corrupted resumes
-                cacheFolder.listFiles { file -> file.name.endsWith(".apk") && file.name != fileName }?.forEach { it.delete() }
-                
-                val apkFile = File(cacheFolder, fileName)
-                Log.i(AppConfig.TAG, "Downloading APK to: ${apkFile.absolutePath}")
+                return HttpUtil.getUrlContentWithUserAgent(
+                    url,
+                    "ProBel-D/${BuildConfig.VERSION_NAME}",
+                    timeoutMs,
+                    port
+                )
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(AppConfig.TAG, "GitHub request failed using ${if (port == 0) "system network" else "VPN proxy"}: ${e.message}")
+            }
+        }
+        throw IllegalStateException("Failed to contact GitHub. Check the VPN connection and try again.", lastError)
+    }
 
-                var downloadedBytes = 0L
-                if (apkFile.exists()) {
-                    downloadedBytes = apkFile.length()
-                    if (downloadedBytes > 0) {
-                        connection.setRequestProperty("Range", "bytes=$downloadedBytes-")
-                        Log.i(AppConfig.TAG, "Requesting range: bytes=$downloadedBytes-")
-                    }
-                }
+    private fun downloadApkViaPort(
+        context: Context,
+        downloadUrl: String,
+        port: Int,
+        onProgress: ((Int) -> Unit)?
+    ): File? {
+        val connection = HttpUtil.createProxyConnection(downloadUrl, port, 30_000, 30_000, true)
+        if (connection == null) {
+            Log.w(AppConfig.TAG, "Unable to create GitHub APK connection (port=$port)")
+            return null
+        }
 
-                connection.connect()
-                val responseCode = connection.responseCode
-                Log.i(AppConfig.TAG, "Response code: $responseCode")
+        try {
+            val cacheFolder = context.externalCacheDir ?: context.cacheDir
+            val fileName = downloadUrl.substringAfterLast("/", "update.apk")
+            cacheFolder.listFiles { file -> file.name.endsWith(".apk") && file.name != fileName }
+                ?.forEach { it.delete() }
 
-                if (responseCode == 416) {
-                    Log.i(AppConfig.TAG, "Range not satisfiable, assuming file is fully downloaded.")
-                    return@withContext apkFile
-                }
+            val apkFile = File(cacheFolder, fileName)
+            Log.i(AppConfig.TAG, "Downloading APK to: ${apkFile.absolutePath} (port=$port)")
 
-                val append = responseCode == HttpURLConnection.HTTP_PARTIAL
-                if (!append) {
-                    Log.i(AppConfig.TAG, "Server doesn't support range or full file requested, starting from scratch")
-                    downloadedBytes = 0L
-                    if (apkFile.exists()) {
-                        apkFile.delete()
-                    }
-                }
+            var downloadedBytes = apkFile.takeIf { it.exists() }?.length() ?: 0L
+            if (downloadedBytes > 0) {
+                connection.setRequestProperty("Range", "bytes=$downloadedBytes-")
+                Log.i(AppConfig.TAG, "Requesting range: bytes=$downloadedBytes-")
+            }
 
-                val contentLength = connection.contentLength
-                val fileLength = if (append) downloadedBytes + contentLength else contentLength.toLong()
-                
-                var lastProgress = 0
-                
-                FileOutputStream(apkFile, append).use { outputStream ->
-                    connection.inputStream.use { inputStream ->
-                        val buffer = ByteArray(8 * 1024)
-                        var bytesRead: Int
-                        var totalRead = downloadedBytes
-                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                            outputStream.write(buffer, 0, bytesRead)
-                            totalRead += bytesRead
-                            if (fileLength > 0) {
-                                val progress = (totalRead * 100 / fileLength).toInt()
-                                if (progress > lastProgress) {
-                                    lastProgress = progress
-                                    onProgress?.invoke(progress)
-                                }
+            connection.connect()
+            val responseCode = connection.responseCode
+            Log.i(AppConfig.TAG, "APK response code: $responseCode (port=$port)")
+
+            if (responseCode == 416) {
+                Log.i(AppConfig.TAG, "Range not satisfiable; checksum will verify the existing APK.")
+                return apkFile
+            }
+
+            val append = responseCode == HttpURLConnection.HTTP_PARTIAL
+            if (!append) {
+                downloadedBytes = 0L
+                if (apkFile.exists()) apkFile.delete()
+            }
+
+            val contentLength = connection.contentLength
+            val fileLength = if (append) downloadedBytes + contentLength else contentLength.toLong()
+            var lastProgress = 0
+
+            FileOutputStream(apkFile, append).use { outputStream ->
+                connection.inputStream.use { inputStream ->
+                    val buffer = ByteArray(8 * 1024)
+                    var bytesRead: Int
+                    var totalRead = downloadedBytes
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (fileLength > 0) {
+                            val progress = (totalRead * 100 / fileLength).toInt()
+                            if (progress > lastProgress) {
+                                lastProgress = progress
+                                onProgress?.invoke(progress)
                             }
                         }
                     }
                 }
-                Log.i(AppConfig.TAG, "APK download completed")
-                return@withContext apkFile
-            } catch (e: Exception) {
-                Log.e(AppConfig.TAG, "Failed to download APK: ${e.message}")
-                return@withContext null
-            } finally {
-                try {
-                    connection.disconnect()
-                } catch (e: Exception) {
-                    Log.e(AppConfig.TAG, "Error closing connection: ${e.message}")
-                }
             }
+            Log.i(AppConfig.TAG, "APK download completed")
+            return apkFile
         } catch (e: Exception) {
-            Log.e(AppConfig.TAG, "Failed to initiate download: ${e.message}")
-            return@withContext null
+            Log.e(AppConfig.TAG, "APK download attempt failed (port=$port): ${e.message}")
+            return null
+        } finally {
+            connection.disconnect()
         }
     }
 
@@ -201,9 +213,11 @@ object UpdateCheckerManager {
 
     suspend fun verifyChecksum(apkFile: File, checksumUrl: String, apkFileName: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val isRunning = com.kiktor.v2whitelist.handler.V2RayServiceManager.isRunning()
-            val httpPort = if (isRunning) SettingsManager.getHttpPort() else 0
-            val response = HttpUtil.getUrlContentWithUserAgent(checksumUrl, null, 5000, httpPort)
+            val response = getGithubContent(
+                checksumUrl,
+                getGithubConnectionPorts(),
+                timeoutMs = 12_000
+            )
             
             var expectedHash: String? = null
             for (line in response.lines()) {
