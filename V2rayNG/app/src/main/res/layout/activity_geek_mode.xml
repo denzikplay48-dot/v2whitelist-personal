@@ -101,7 +101,6 @@
             android:layout_width="match_parent"
             android:layout_height="250dp"
             android:background="#1E1E1E"
-            android:nestedScrollingEnabled="false"
             android:padding="8dp">
 
             <TextView

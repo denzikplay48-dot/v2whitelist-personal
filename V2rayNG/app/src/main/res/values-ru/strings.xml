@@ -340,7 +340,7 @@
     <string name="summary_pref_chunk_size">Сколько серверов тестировать за один проход (по умолчанию: 20)</string>
     <string name="title_pref_chunk_preset">Пресет распределения по умолчанию</string>
 
-    <string name="network_status_waiting">Статус появится после проверки сети</string>
+    <string name="network_status_waiting">Проверяем режим сети…</string>
     <string name="network_status_regular_vpn">Обычный VPN</string>
     <string name="network_status_whitelist">Режим белого списка</string>
     <string name="network_status_unavailable">Сеть не доступна</string>

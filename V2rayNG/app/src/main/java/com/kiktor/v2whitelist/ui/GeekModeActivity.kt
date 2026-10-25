@@ -2,7 +2,6 @@ package com.kiktor.v2whitelist.ui
 
 import android.os.Bundle
 import androidx.activity.viewModels
-import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -24,6 +23,7 @@ class GeekModeActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentViewWithToolbar(binding.root, showHomeAsUp = true, title = "Geek Mode")
+        binding.logsScrollView.isNestedScrollingEnabled = false
 
         binding.btnForcePing.setOnClickListener {
             viewModel.forcePingTest()
@@ -84,16 +84,14 @@ class GeekModeActivity : BaseActivity() {
 
                 launch {
                     viewModel.logs.collect { logsList ->
-                        val pageScrollY = binding.root.scrollY
                         binding.tvLogs.text = logsList.joinToString("\n")
                         val nsv = binding.logsScrollView
                         nsv.post {
+                            if (isFinishing || isDestroyed || !nsv.isAttachedToWindow) return@post
                             val logContent = nsv.getChildAt(0)
                             if (logContent != null) {
                                 nsv.scrollTo(0, logContent.height)
                             }
-                            // Updating and scrolling the nested log view must not move the page.
-                            binding.root.post { binding.root.scrollTo(0, pageScrollY) }
                         }
                     }
                 }

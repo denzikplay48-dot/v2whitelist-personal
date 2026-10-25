@@ -37,7 +37,7 @@
     <string name="status_updating_subscription">Updating server list…</string>
     <string name="status_no_servers">No servers found. Try updating the list.</string>
     <string name="status_no_internet">No internet connection.</string>
-    <string name="network_status_waiting">Waiting for a network check</string>
+    <string name="network_status_waiting">Checking network mode…</string>
     <string name="network_status_regular_vpn">Regular VPN</string>
     <string name="network_status_whitelist">Whitelist mode</string>
     <string name="network_status_unavailable">Network unavailable</string>

@@ -70,6 +70,7 @@ class MainActivity : HelperBaseActivity() {
     private var isSubscriptionUpdating = false
     private var customEndpointCheckJob: Job? = null
     private var networkStatusJob: Job? = null
+    private var networkStatusCheckJob: Job? = null
     // true пока мы показываем сообщение об ошибке после провала SmartConnect (2.5с задержка)
     private var isShowingError = false
     private var watchdogJob: Job? = null
@@ -910,6 +911,7 @@ class MainActivity : HelperBaseActivity() {
 
         updateSubscriptionStatusUI()
         observeNetworkStatus()
+        refreshNetworkStatus()
 
         if (SmartConnectManager.isScanning.get()) {
             setConnectingState()
@@ -941,7 +943,16 @@ class MainActivity : HelperBaseActivity() {
     override fun onPause() {
         networkStatusJob?.cancel()
         networkStatusJob = null
+        networkStatusCheckJob?.cancel()
+        networkStatusCheckJob = null
         super.onPause()
+    }
+
+    private fun refreshNetworkStatus() {
+        networkStatusCheckJob?.cancel()
+        networkStatusCheckJob = lifecycleScope.launch(Dispatchers.IO) {
+            NetworkManager.checkInternetStatus()
+        }
     }
 
     private fun observeNetworkStatus() {

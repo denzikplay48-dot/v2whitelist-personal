@@ -193,9 +193,16 @@ class LocationFilterActivity : BaseActivity() {
          */
         fun extractFirstFlagEmoji(text: String): String? {
             val codePoints = text.codePoints().toArray()
-            for (i in 0 until codePoints.size - 1) {
-                if (codePoints[i] in 0x1F1E6..0x1F1FF && codePoints[i + 1] in 0x1F1E6..0x1F1FF) {
-                    return String(codePoints, i, 2)
+            for (i in codePoints.indices) {
+                if (codePoints[i] !in 0x1F1E6..0x1F1FF) continue
+
+                var secondFlagPart = i + 1
+                // Accept an optional emoji variation selector between the two regional indicators.
+                if (secondFlagPart < codePoints.size && codePoints[secondFlagPart] == 0xFE0F) {
+                    secondFlagPart++
+                }
+                if (secondFlagPart < codePoints.size && codePoints[secondFlagPart] in 0x1F1E6..0x1F1FF) {
+                    return String(intArrayOf(codePoints[i], codePoints[secondFlagPart]), 0, 2)
                 }
             }
             return null
@@ -271,6 +278,7 @@ class LocationFilterActivity : BaseActivity() {
          * 5. Fallback: TAG_UNKNOWN ("🌐 Неизвестные").
          */
         fun resolveServerTag(remarks: String, regexStr: String?): String {
+            // The country flag in the profile name is authoritative over unknown/group/protocol tags.
             val flag = extractFirstFlagEmoji(remarks)
             if (!flag.isNullOrEmpty()) {
                 return flag
