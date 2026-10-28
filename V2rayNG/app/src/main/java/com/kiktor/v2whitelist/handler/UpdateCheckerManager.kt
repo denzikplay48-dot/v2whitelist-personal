@@ -16,7 +16,14 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 
 object UpdateCheckerManager {
-    suspend fun checkForUpdate(includePreRelease: Boolean = false): CheckUpdateResult = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(includePreRelease: Boolean = false): CheckUpdateResult =
+        checkForUpdates(includeStable = !includePreRelease, includePreRelease = includePreRelease)
+
+    suspend fun checkForUpdates(includeStable: Boolean, includePreRelease: Boolean): CheckUpdateResult = withContext(Dispatchers.IO) {
+        if (!includeStable && !includePreRelease) {
+            return@withContext CheckUpdateResult(hasUpdate = false)
+        }
+
         val response = getGithubContent(
             AppConfig.APP_API_URL,
             getGithubConnectionPorts(),
@@ -25,9 +32,9 @@ object UpdateCheckerManager {
         val releases = JsonUtil.fromJson(response, Array<GitHubRelease>::class.java)
             ?.filter { it.tagName.isNotBlank() }
             .orEmpty()
-        // The checkbox selects exactly one update channel. Stable users must not receive
-        // developer pre-releases just because the repository has no stable release yet.
-        val eligibleReleases = releases.filter { it.prerelease == includePreRelease }
+        val eligibleReleases = releases.filter { release ->
+            if (release.prerelease) includePreRelease else includeStable
+        }
         val latestRelease = eligibleReleases.maxWithOrNull { first, second ->
             compareVersions(first.tagName.removePrefix("v"), second.tagName.removePrefix("v"))
         } ?: return@withContext CheckUpdateResult(hasUpdate = false)

@@ -274,16 +274,16 @@ class MainActivity : HelperBaseActivity() {
     }
 
     private fun checkAppUpdate() {
-        val shouldCheck = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_CHECK_UPDATE, true)
-        if (!shouldCheck) return
+        val includeStable = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_CHECK_UPDATE, true)
+        val includePreRelease = MmkvManager.decodeSettingsBool(AppConfig.PREF_CHECK_UPDATE_PRE_RELEASE, false)
+        if (!includeStable && !includePreRelease) return
         
         lifecycleScope.launch {
             try {
-                val includePreRelease = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsBool(
-                    AppConfig.PREF_CHECK_UPDATE_PRE_RELEASE,
-                    false
+                val result = com.kiktor.v2whitelist.handler.UpdateCheckerManager.checkForUpdates(
+                    includeStable = includeStable,
+                    includePreRelease = includePreRelease
                 )
-                val result = com.kiktor.v2whitelist.handler.UpdateCheckerManager.checkForUpdate(includePreRelease)
                 if (result.hasUpdate && !result.downloadUrl.isNullOrEmpty()) {
                     showUpdateNotification(result)
                 }

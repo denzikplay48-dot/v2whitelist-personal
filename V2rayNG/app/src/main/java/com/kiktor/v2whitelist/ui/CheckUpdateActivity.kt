@@ -33,7 +33,7 @@ class CheckUpdateActivity : BaseActivity() {
         setContentViewWithToolbar(binding.root, showHomeAsUp = true, title = getString(R.string.update_check_for_update))
 
         binding.layoutCheckUpdate.setOnClickListener {
-            checkForUpdates(binding.checkPreRelease.isChecked)
+            checkForUpdates()
         }
 
         binding.checkPreRelease.setOnCheckedChangeListener { _, isChecked ->
@@ -45,16 +45,28 @@ class CheckUpdateActivity : BaseActivity() {
             binding.tvVersion.text = it
         }
 
-        checkForUpdates(binding.checkPreRelease.isChecked)
+        if (hasSelectedUpdateChannel()) {
+            checkForUpdates()
+        }
     }
 
-    private fun checkForUpdates(includePreRelease: Boolean) {
+    private fun hasSelectedUpdateChannel(): Boolean =
+        MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_CHECK_UPDATE, true) || binding.checkPreRelease.isChecked
+
+    private fun checkForUpdates() {
+        val includeStable = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_CHECK_UPDATE, true)
+        val includePreRelease = binding.checkPreRelease.isChecked
+        if (!includeStable && !includePreRelease) {
+            toast(R.string.update_no_channels_enabled)
+            return
+        }
+
         toast(R.string.update_checking_for_update)
         showLoading()
 
         lifecycleScope.launch {
             try {
-                val result = UpdateCheckerManager.checkForUpdate(includePreRelease)
+                val result = UpdateCheckerManager.checkForUpdates(includeStable, includePreRelease)
                 if (result.hasUpdate) {
                     showUpdateDialog(result)
                 } else {

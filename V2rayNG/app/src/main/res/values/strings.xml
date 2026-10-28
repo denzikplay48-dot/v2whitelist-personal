@@ -281,8 +281,8 @@
 
     <string name="title_pref_promotion">Promotion</string>
 
-    <string name="title_pref_auto_check_update">Auto check for app updates</string>
-    <string name="summary_pref_auto_check_update">Check for new versions on GitHub when the app starts</string>
+    <string name="title_pref_auto_check_update">Automatically check stable releases</string>
+    <string name="summary_pref_auto_check_update">Check stable releases at startup; pre-releases are controlled separately</string>
     <string name="title_pref_check_update_pre_release">Receive Pre-release (Beta) updates</string>
     <string name="summary_pref_check_update_pre_release">⚠️ FOR DEVELOPERS AND TESTERS ONLY! Experimental builds. The app may work unstably or fail to function after updating.</string>
 
@@ -458,8 +458,9 @@
     <string name="update_already_latest_version">Already on the latest version</string>
     <string name="update_new_version_found">New version found: %s</string>
     <string name="update_now">Update now</string>
-    <string name="update_check_pre_release">Only pre-releases</string>
-    <string name="update_channel_hint">Off: check stable releases only</string>
+    <string name="update_check_pre_release">Receive pre-releases</string>
+    <string name="update_channel_hint">When enabled, pre-releases are checked alongside stable releases</string>
+    <string name="update_no_channels_enabled">Enable stable releases or pre-releases to check for updates</string>
     <string name="update_checking_for_update">Checking for update…</string>
     <string name="title_downloading_update">Downloading update…</string>
 

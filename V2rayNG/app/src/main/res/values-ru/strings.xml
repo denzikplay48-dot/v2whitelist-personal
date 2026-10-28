@@ -255,8 +255,8 @@
 
     <string name="title_pref_promotion">Содействие</string>
 
-    <string name="title_pref_auto_check_update">Автоматически проверять обновления приложения</string>
-    <string name="summary_pref_auto_check_update">Искать новые версии на GitHub при запуске приложения</string>
+    <string name="title_pref_auto_check_update">Автоматически проверять основные релизы</string>
+    <string name="summary_pref_auto_check_update">Искать основные релизы при запуске; pre-release настраиваются отдельно</string>
     <string name="title_pref_check_update_pre_release">Получать Pre-release (Beta) обновления</string>
     <string name="summary_pref_check_update_pre_release">⚠️ ТОЛЬКО ДЛЯ РАЗРАБОТЧИКОВ И ТЕСТИРОВЩИКОВ! Экспериментальные сборки. После обновления приложение может работать нестабильно или сломаться.</string>
 
@@ -438,8 +438,9 @@
     <string name="update_already_latest_version">Установлена последняя версия</string>
     <string name="update_new_version_found">Найдена новая версия: %s</string>
     <string name="update_now">Обновить</string>
-    <string name="update_check_pre_release">Только pre-release</string>
-    <string name="update_channel_hint">Выключено: проверять только основные релизы</string>
+    <string name="update_check_pre_release">Получать pre-release</string>
+    <string name="update_channel_hint">Если включено, pre-release проверяются вместе с основными релизами</string>
+    <string name="update_no_channels_enabled">Включите основные релизы или pre-release для проверки обновлений</string>
     <string name="update_checking_for_update">Проверка обновления…</string>
     <string name="title_downloading_update">Загрузка обновления…</string>
 
