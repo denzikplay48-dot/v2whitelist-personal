@@ -25,13 +25,12 @@ object UpdateCheckerManager {
         val releases = JsonUtil.fromJson(response, Array<GitHubRelease>::class.java)
             ?.filter { it.tagName.isNotBlank() }
             .orEmpty()
-        val stableReleases = releases.filterNot { it.prerelease }
-        // This fork publishes its numbered releases as GitHub pre-releases. If there are no
-        // stable releases, still offer the newest fork build even when the beta option is off.
-        val eligibleReleases = if (includePreRelease || stableReleases.isEmpty()) releases else stableReleases
+        // The checkbox selects exactly one update channel. Stable users must not receive
+        // developer pre-releases just because the repository has no stable release yet.
+        val eligibleReleases = releases.filter { it.prerelease == includePreRelease }
         val latestRelease = eligibleReleases.maxWithOrNull { first, second ->
             compareVersions(first.tagName.removePrefix("v"), second.tagName.removePrefix("v"))
-        } ?: throw IllegalStateException("No releases found in the GitHub repository")
+        } ?: return@withContext CheckUpdateResult(hasUpdate = false)
 
         val latestVersion = latestRelease.tagName.removePrefix("v")
         Log.i(

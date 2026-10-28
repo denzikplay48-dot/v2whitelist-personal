@@ -315,6 +315,111 @@ object SmartConnectManager {
         return false
     }
 
+    /** Scans the current eligible list once and connects immediately on the first verified result. */
+    private suspend fun scanAndConnect(
+        context: Context,
+        filteredServers: List<Pair<String, ProfileItem>>,
+        isStartup: Boolean,
+        internetStatus: Int? = null
+    ): Boolean {
+        if (filteredServers.isEmpty()) return false
+
+        val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
+            ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
+        if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
+            val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
+                context,
+                filteredServers,
+                isStartup = isStartup,
+                internetStatus = internetStatus ?: NetworkManager.checkInternetStatus(),
+                sendStatus = { status -> sendStatus(context, status) },
+                connectToBest = { candidate, startup ->
+                    connectToBest(context, Triple(candidate.first, candidate.second, 0L), startup)
+                }
+            )
+            if (v2wSuccess) return true
+            if (!MmkvManager.isV2wFallbackEnabled()) return false
+            GeekModeLogger.log("SmartConnect", "v2w-core found no working servers, falling back to classic scanner")
+            sendStatus(context, context.getString(R.string.status_v2w_fallback_to_classic))
+            delay(1000)
+        }
+
+        val chunkedServers = buildProportionalChunks(filteredServers)
+        val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true) || strictExitChecks
+        for ((index, chunk) in chunkedServers.withIndex()) {
+            GeekModeLogger.log(
+                "SmartConnect",
+                "Testing chunk ${index + 1}/${chunkedServers.size} (${chunk.size} servers)"
+            )
+            if (internetStatus == null || internetStatus == 0) {
+                sendStatus(context, context.getString(R.string.status_testing_servers))
+            }
+
+            val results = NodeTesterManager.testServers(context, chunk)
+            val candidates = results.filter { it.third < Long.MAX_VALUE }
+            if (profileCheckEnabled) {
+                for (candidate in candidates) {
+                    if (NodeTesterManager.verifyProfile(
+                            context,
+                            candidate.first,
+                            showStatus = internetStatus == null || internetStatus == 0
+                        )
+                    ) {
+                        connectToBest(context, candidate, isStartup)
+                        return true
+                    }
+                    if (internetStatus == null || internetStatus == 0) {
+                        sendStatus(context, context.getString(R.string.status_profile_check_failed))
+                    }
+                }
+            } else {
+                val candidate = candidates.firstOrNull()
+                if (candidate != null) {
+                    connectToBest(context, candidate, isStartup)
+                    return true
+                }
+            }
+            GeekModeLogger.log("SmartConnect", "No working server found in chunk ${index + 1}")
+        }
+
+        val customEndpointEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_CUSTOM_ENDPOINT_ENABLED, false)
+        val endpointUrl = MmkvManager.decodeSettingsString(AppConfig.PREF_CUSTOM_ENDPOINT_URL)
+        if (customEndpointEnabled && !endpointUrl.isNullOrBlank()) {
+            val testCandidate = filteredServers.first()
+            if (NodeTesterManager.verifyProfile(
+                    context,
+                    testCandidate.first,
+                    showStatus = false,
+                    ignoreCustomEndpoint = true
+                )
+            ) {
+                val endpointProfile = AngConfigManager.identifyConfigType(endpointUrl)
+                val endpointName = endpointProfile?.remarks?.takeIf { it.isNotBlank() } ?: "Конечный узел"
+                GeekModeLogger.log("SmartConnect", "Servers work directly, but Custom Endpoint ($endpointName) is down")
+                sendStatus(context, "⚠️ Конечный узел ($endpointName) не отвечает")
+            }
+        }
+        return false
+    }
+
+    private suspend fun refreshSubscriptionsBeforeRetry(context: Context, isStartup: Boolean, cycle: Int) {
+        GeekModeLogger.log("SmartConnect", "Search cycle $cycle found no working profile; refreshing subscriptions before retry")
+        sendStatus(context, context.getString(R.string.status_refreshing_subscriptions))
+        try {
+            SubscriptionHelper.updateSubscription(
+                context,
+                isStartup = isStartup,
+                sequential = true,
+                forceSourceSync = true
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GeekModeLogger.log("SmartConnect", "Subscription refresh before retry failed: ${e.message}")
+        }
+        delay(1500)
+    }
+
     /**
      * Logic for "Smart Connect" - filter, sort by RealPing, and connect to best.
      */
@@ -353,96 +458,20 @@ object SmartConnectManager {
                 return@withContext true
             }
 
-            val allServers = MmkvManager.decodeServerList()
-            val filteredServers = filterServers(allServers).shuffled()
-
-            if (filteredServers.isEmpty()) {
-                GeekModeLogger.log("SmartConnect", "No servers found in hardcoded subscription")
-                sendStatus(context, context.getString(R.string.status_no_servers))
-                return@withContext false
-            }
-
-            val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
-                ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
-            if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
-                val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
-                    context, 
-                    filteredServers, 
-                    isStartup = true,
-                    internetStatus = internetStatus,
-                    sendStatus = { status -> sendStatus(context, status) },
-                    connectToBest = { candidate, startup -> connectToBest(context, Triple(candidate.first, candidate.second, 0L), startup) }
+            var cycle = 0
+            while (true) {
+                cycle++
+                val filteredServers = filterServers(MmkvManager.decodeServerList()).shuffled()
+                GeekModeLogger.log(
+                    "SmartConnect",
+                    "Search cycle $cycle: checking ${filteredServers.size} profiles eligible under current filters"
                 )
-                if (v2wSuccess) {
+                if (scanAndConnect(context, filteredServers, isStartup = true, internetStatus = internetStatus)) {
+                    NotificationManager.cancelFailoverNotification()
                     return@withContext true
                 }
-                if (!MmkvManager.isV2wFallbackEnabled()) {
-                    return@withContext false
-                }
-                GeekModeLogger.log("SmartConnect", "v2w-core found no working servers, falling back to classic scanner")
-                sendStatus(context, context.getString(R.string.status_v2w_fallback_to_classic))
-                delay(1000)
+                refreshSubscriptionsBeforeRetry(context, isStartup = true, cycle = cycle)
             }
-
-            val chunkedServers = buildProportionalChunks(filteredServers)
-            var best: Triple<String, ProfileItem, Long>? = null
-            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true) || strictExitChecks
-
-            for ((index, chunk) in chunkedServers.withIndex()) {
-                GeekModeLogger.log("SmartConnect", "Starting Smart Connect for chunk ${index + 1}/${chunkedServers.size} (${chunk.size} servers)")
-                // Обновляем статус "тестируем" только если интернет в норме.
-                // При "глушат" (1) и "нет интернета" (2) строки уже говорят "ищём серверы" —
-                // перезаписывать их бессмысленно, иначе пользователь не увидит важный контекст.
-                if (internetStatus == 0) {
-                    sendStatus(context, context.getString(R.string.status_testing_servers))
-                }
-
-                val results = NodeTesterManager.testServers(context, chunk)
-
-                if (profileCheckEnabled) {
-                    for (candidate in results.filter { it.third < Long.MAX_VALUE }) {
-                        if (NodeTesterManager.verifyProfile(context, candidate.first, showStatus = (internetStatus == 0))) {
-                            best = candidate
-                            break
-                        } else {
-                            if (internetStatus == 0) {
-                                sendStatus(context, context.getString(R.string.status_profile_check_failed))
-                            }
-                        }
-                    }
-                } else {
-                    best = results.firstOrNull { it.third < Long.MAX_VALUE }
-                }
-
-                if (best != null) {
-                    break // Found a working server, stop testing other chunks
-                }
-                GeekModeLogger.log("SmartConnect", "No working server found in chunk ${index + 1}, moving to next chunk...")
-            }
-
-            if (best != null) {
-                connectToBest(context, best, isStartup = true)
-                NotificationManager.cancelFailoverNotification()
-                return@withContext true
-            }
-
-            val customEndpointEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_CUSTOM_ENDPOINT_ENABLED, false)
-            val endpointUrl = MmkvManager.decodeSettingsString(AppConfig.PREF_CUSTOM_ENDPOINT_URL)
-            if (customEndpointEnabled && !endpointUrl.isNullOrBlank() && filteredServers.isNotEmpty()) {
-                val testCandidate = filteredServers.first()
-                val worksDirectly = NodeTesterManager.verifyProfile(context, testCandidate.first, showStatus = false, ignoreCustomEndpoint = true)
-                if (worksDirectly) {
-                    val endpointProfile = AngConfigManager.identifyConfigType(endpointUrl)
-                    val endpointName = endpointProfile?.remarks?.takeIf { it.isNotBlank() } ?: "Конечный узел"
-                    GeekModeLogger.log("SmartConnect", "⚠️ Servers work directly, but Custom Endpoint ($endpointName) is DOWN!")
-                    sendStatus(context, "⚠️ Конечный узел ($endpointName) не отвечает")
-                    return@withContext false
-                }
-            }
-
-            GeekModeLogger.log("SmartConnect", "No working server found after checking all chunks")
-            sendStatus(context, context.getString(R.string.status_no_servers))
-            return@withContext false
         } finally {
             isScanning.set(false)
             NotificationManager.cancelScanningNotification(context)
@@ -461,94 +490,31 @@ object SmartConnectManager {
         try {
             // Ждем появления интернета (dzen.ru) перед переключением
             NetworkManager.waitForInternet(context)
-            
-            val currentGuid = MmkvManager.getSelectServer()
 
-            if (connectFromAutoBackup(context, isStartup = false, excludeGuid = currentGuid)) {
+            if (connectFromAutoBackup(context, isStartup = false, excludeGuid = MmkvManager.getSelectServer())) {
                 NotificationManager.cancelFailoverNotification()
                 return@withContext true
             }
-            
-            val allServers = MmkvManager.decodeServerList()
-            val filteredServers = filterServers(allServers, excludeGuid = currentGuid).shuffled()
 
-            if (filteredServers.isEmpty()) {
-                return@withContext false
-            }
-
-            val strictExitChecks = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_FAILOVER, false) ||
-                ServiceAppsRoutingManager.requiresNonRussianExitForSelection()
-            if (MmkvManager.isV2wCoreEnabled() && !strictExitChecks) {
-                val v2wSuccess = V2WScannerEngine.runV2WCoreScan(
-                    context, 
-                    filteredServers, 
-                    isStartup = false,
-                    sendStatus = { status -> sendStatus(context, status) },
-                    connectToBest = { candidate, startup -> connectToBest(context, Triple(candidate.first, candidate.second, 0L), startup) }
+            var cycle = 0
+            while (true) {
+                cycle++
+                val currentGuid = MmkvManager.getSelectServer()
+                val filteredServers = filterServers(
+                    MmkvManager.decodeServerList(),
+                    excludeGuid = currentGuid
+                ).shuffled()
+                GeekModeLogger.log(
+                    "SmartConnect",
+                    "Switch cycle $cycle: checking ${filteredServers.size} alternative profiles eligible under current filters"
                 )
-                if (v2wSuccess) {
+                sendStatus(context, context.getString(R.string.status_switching_server))
+                if (scanAndConnect(context, filteredServers, isStartup = false)) {
+                    NotificationManager.cancelFailoverNotification()
                     return@withContext true
                 }
-                if (!MmkvManager.isV2wFallbackEnabled()) {
-                    return@withContext false
-                }
-                GeekModeLogger.log("SmartConnect", "v2w-core found no working servers in switchToNextServer, falling back to classic scanner")
-                sendStatus(context, context.getString(R.string.status_v2w_fallback_to_classic))
-                delay(1000)
+                refreshSubscriptionsBeforeRetry(context, isStartup = false, cycle = cycle)
             }
-
-            sendStatus(context, context.getString(R.string.status_switching_server))
-
-            val chunkedServers = buildProportionalChunks(filteredServers)
-            var nextBest: Triple<String, ProfileItem, Long>? = null
-            val profileCheckEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_PROFILE_CHECK_ENABLED, true) || strictExitChecks
-
-            for ((index, chunk) in chunkedServers.withIndex()) {
-                GeekModeLogger.log("SmartConnect", "Switching server: testing chunk ${index + 1}/${chunkedServers.size} (${chunk.size} servers)")
-                sendStatus(context, context.getString(R.string.status_testing_servers))
-
-                val results = NodeTesterManager.testServers(context, chunk)
-
-                if (profileCheckEnabled) {
-                    for (candidate in results.filter { it.third < Long.MAX_VALUE }) {
-                        if (NodeTesterManager.verifyProfile(context, candidate.first)) {
-                            nextBest = candidate
-                            break
-                        }
-                    }
-                } else {
-                    nextBest = results.firstOrNull { it.third < Long.MAX_VALUE }
-                }
-
-                if (nextBest != null) {
-                    break
-                }
-                GeekModeLogger.log("SmartConnect", "No working server found in chunk ${index + 1}, moving to next chunk...")
-            }
-
-            if (nextBest != null) {
-                connectToBest(context, nextBest, isStartup = false)
-                NotificationManager.cancelFailoverNotification()
-                return@withContext true
-            }
-
-            val customEndpointEnabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_CUSTOM_ENDPOINT_ENABLED, false)
-            val endpointUrl = MmkvManager.decodeSettingsString(AppConfig.PREF_CUSTOM_ENDPOINT_URL)
-            if (customEndpointEnabled && !endpointUrl.isNullOrBlank() && filteredServers.isNotEmpty()) {
-                val testCandidate = filteredServers.first()
-                val worksDirectly = NodeTesterManager.verifyProfile(context, testCandidate.first, showStatus = false, ignoreCustomEndpoint = true)
-                if (worksDirectly) {
-                    val endpointProfile = AngConfigManager.identifyConfigType(endpointUrl)
-                    val endpointName = endpointProfile?.remarks?.takeIf { it.isNotBlank() } ?: "Конечный узел"
-                    GeekModeLogger.log("SmartConnect", "switchServer: ⚠️ Servers work directly, but Custom Endpoint ($endpointName) is DOWN!")
-                    sendStatus(context, "⚠️ Конечный узел ($endpointName) не отвечает")
-                    return@withContext false
-                }
-            }
-
-            GeekModeLogger.log("SmartConnect", "switchServer: No working server found")
-            sendStatus(context, context.getString(R.string.status_no_servers))
-            return@withContext false
         } finally {
             isScanning.set(false)
             NotificationManager.cancelScanningNotification(context)

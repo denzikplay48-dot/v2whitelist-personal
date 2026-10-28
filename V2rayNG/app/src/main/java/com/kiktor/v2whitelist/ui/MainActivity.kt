@@ -279,8 +279,11 @@ class MainActivity : HelperBaseActivity() {
         
         lifecycleScope.launch {
             try {
-                // Tagged releases in this fork are published with GitHub's prerelease flag enabled.
-                val result = com.kiktor.v2whitelist.handler.UpdateCheckerManager.checkForUpdate(includePreRelease = true)
+                val includePreRelease = com.kiktor.v2whitelist.handler.MmkvManager.decodeSettingsBool(
+                    AppConfig.PREF_CHECK_UPDATE_PRE_RELEASE,
+                    false
+                )
+                val result = com.kiktor.v2whitelist.handler.UpdateCheckerManager.checkForUpdate(includePreRelease)
                 if (result.hasUpdate && !result.downloadUrl.isNullOrEmpty()) {
                     showUpdateNotification(result)
                 }

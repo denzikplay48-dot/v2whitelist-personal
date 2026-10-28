@@ -438,7 +438,8 @@
     <string name="update_already_latest_version">Установлена последняя версия</string>
     <string name="update_new_version_found">Найдена новая версия: %s</string>
     <string name="update_now">Обновить</string>
-    <string name="update_check_pre_release">Искать предварительный выпуск</string>
+    <string name="update_check_pre_release">Только pre-release</string>
+    <string name="update_channel_hint">Выключено: проверять только основные релизы</string>
     <string name="update_checking_for_update">Проверка обновления…</string>
     <string name="title_downloading_update">Загрузка обновления…</string>
 
@@ -543,6 +544,7 @@
     <string name="status_connecting_to">Подключаемся к %s…</string>
     <string name="status_switching_server">Выбираем другой сервер…</string>
     <string name="status_no_servers">Серверы не найдены. Попробуйте обновить список.</string>
+    <string name="status_refreshing_subscriptions">Рабочий профиль не найден. Обновляем подписки и повторяем поиск…</string>
     <string name="status_no_internet">Нет интернета.</string>
     <string name="status_waiting_for_network">Нет прямого доступа в интернет. Ожидание сети…</string>
     <string name="status_jamming_detected">Возможно глушат интернет, ищем быстрые сервера для обхода… (может занять время)</string>

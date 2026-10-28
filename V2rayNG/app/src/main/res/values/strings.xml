@@ -36,6 +36,7 @@
     <string name="status_switching_server">Selecting another server…</string>
     <string name="status_updating_subscription">Updating server list…</string>
     <string name="status_no_servers">No servers found. Try updating the list.</string>
+    <string name="status_refreshing_subscriptions">No working profile; updating subscriptions and retrying…</string>
     <string name="status_no_internet">No internet connection.</string>
     <string name="network_status_waiting">Checking network mode…</string>
     <string name="network_status_regular_vpn">Regular VPN</string>
@@ -457,7 +458,8 @@
     <string name="update_already_latest_version">Already on the latest version</string>
     <string name="update_new_version_found">New version found: %s</string>
     <string name="update_now">Update now</string>
-    <string name="update_check_pre_release">Check Pre-release</string>
+    <string name="update_check_pre_release">Only pre-releases</string>
+    <string name="update_channel_hint">Off: check stable releases only</string>
     <string name="update_checking_for_update">Checking for update…</string>
     <string name="title_downloading_update">Downloading update…</string>
 

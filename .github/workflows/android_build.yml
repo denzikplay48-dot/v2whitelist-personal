@@ -4,6 +4,20 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag, for example v1.2.7.14'
+        required: true
+        type: string
+      release_channel:
+        description: 'Who should receive this update'
+        required: true
+        type: choice
+        options:
+          - prerelease
+          - stable
+        default: prerelease
 
 jobs:
   build:
@@ -105,8 +119,12 @@ jobs:
       working-directory: V2rayNG
 
     - name: Build with Gradle
+      env:
+        RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
       run: |
+        VERSION_NAME="${RELEASE_TAG#v}"
         ./gradlew assembleRelease \
+          -PVERSION_NAME="$VERSION_NAME" \
           -Pandroid.injected.signing.store.file=$PWD/release.keystore \
           -Pandroid.injected.signing.store.password=${{ secrets.RELEASE_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.RELEASE_KEY_ALIAS }} \
@@ -123,7 +141,9 @@ jobs:
     - name: Create Release and Upload APK
       uses: softprops/action-gh-release@v2
       with:
-        prerelease: true
+        tag_name: ${{ inputs.release_tag || github.ref_name }}
+        target_commitish: ${{ github.sha }}
+        prerelease: ${{ github.event_name == 'push' || inputs.release_channel == 'prerelease' }}
         files: |
           release-apks/*
       env:

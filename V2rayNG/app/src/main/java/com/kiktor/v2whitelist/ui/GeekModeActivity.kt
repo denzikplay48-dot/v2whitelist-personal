@@ -19,11 +19,17 @@ class GeekModeActivity : BaseActivity() {
 
     private val binding by lazy { ActivityGeekModeBinding.inflate(layoutInflater) }
     private val viewModel: GeekModeViewModel by viewModels()
+    private var shouldFollowLogs = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentViewWithToolbar(binding.root, showHomeAsUp = true, title = "Geek Mode")
         binding.logsScrollView.isNestedScrollingEnabled = false
+        binding.logsScrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val child = binding.logsScrollView.getChildAt(0) ?: return@setOnScrollChangeListener
+            val bottom = child.height - binding.logsScrollView.height
+            shouldFollowLogs = bottom <= 0 || bottom - scrollY <= 24
+        }
 
         binding.btnForcePing.setOnClickListener {
             viewModel.forcePingTest()
@@ -84,13 +90,14 @@ class GeekModeActivity : BaseActivity() {
 
                 launch {
                     viewModel.logs.collect { logsList ->
+                        val followNewLogs = shouldFollowLogs
                         binding.tvLogs.text = logsList.joinToString("\n")
-                        val nsv = binding.logsScrollView
-                        nsv.post {
-                            if (isFinishing || isDestroyed || !nsv.isAttachedToWindow) return@post
-                            val logContent = nsv.getChildAt(0)
-                            if (logContent != null) {
-                                nsv.scrollTo(0, logContent.height)
+                        if (followNewLogs) {
+                            val nsv = binding.logsScrollView
+                            nsv.post {
+                                if (isFinishing || isDestroyed || !nsv.isAttachedToWindow) return@post
+                                val logContent = nsv.getChildAt(0) ?: return@post
+                                nsv.scrollTo(0, (logContent.height - nsv.height).coerceAtLeast(0))
                             }
                         }
                     }
