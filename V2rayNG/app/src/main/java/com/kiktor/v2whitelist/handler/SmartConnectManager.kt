@@ -472,6 +472,7 @@ object SmartConnectManager {
                 }
                 refreshSubscriptionsBeforeRetry(context, isStartup = true, cycle = cycle)
             }
+            false
         } finally {
             isScanning.set(false)
             NotificationManager.cancelScanningNotification(context)
@@ -515,6 +516,7 @@ object SmartConnectManager {
                 }
                 refreshSubscriptionsBeforeRetry(context, isStartup = false, cycle = cycle)
             }
+            false
         } finally {
             isScanning.set(false)
             NotificationManager.cancelScanningNotification(context)
