@@ -20,15 +20,25 @@ class GeekModeActivity : BaseActivity() {
     private val binding by lazy { ActivityGeekModeBinding.inflate(layoutInflater) }
     private val viewModel: GeekModeViewModel by viewModels()
     private var shouldFollowLogs = true
+    private var isTouchingLogs = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentViewWithToolbar(binding.root, showHomeAsUp = true, title = "Geek Mode")
-        binding.logsScrollView.isNestedScrollingEnabled = false
-        binding.logsScrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            val child = binding.logsScrollView.getChildAt(0) ?: return@setOnScrollChangeListener
-            val bottom = child.height - binding.logsScrollView.height
-            shouldFollowLogs = bottom <= 0 || bottom - scrollY <= 24
+        binding.logsScrollView.isNestedScrollingEnabled = true
+        binding.logsScrollView.setOnScrollChangeListener { _, _, _, _, _ ->
+            shouldFollowLogs = isLogsNearBottom()
+        }
+        binding.logsScrollView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> isTouchingLogs = true
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    isTouchingLogs = false
+                    shouldFollowLogs = isLogsNearBottom()
+                }
+            }
+            false
         }
 
         binding.btnForcePing.setOnClickListener {
@@ -90,15 +100,20 @@ class GeekModeActivity : BaseActivity() {
 
                 launch {
                     viewModel.logs.collect { logsList ->
-                        val followNewLogs = shouldFollowLogs
+                        val nsv = binding.logsScrollView
+                        val followNewLogs = shouldFollowLogs && isLogsNearBottom() && !isTouchingLogs
+                        val previousScrollY = nsv.scrollY
                         binding.tvLogs.text = logsList.joinToString("\n")
-                        if (followNewLogs) {
-                            val nsv = binding.logsScrollView
-                            nsv.post {
-                                if (isFinishing || isDestroyed || !nsv.isAttachedToWindow) return@post
-                                val logContent = nsv.getChildAt(0) ?: return@post
-                                nsv.scrollTo(0, (logContent.height - nsv.height).coerceAtLeast(0))
+                        nsv.post {
+                            if (isFinishing || isDestroyed || !nsv.isAttachedToWindow) return@post
+                            val logContent = nsv.getChildAt(0) ?: return@post
+                            val maxScrollY = (logContent.bottom + nsv.paddingBottom - nsv.height).coerceAtLeast(0)
+                            val targetScrollY = if (followNewLogs && !isTouchingLogs) {
+                                maxScrollY
+                            } else {
+                                previousScrollY.coerceIn(0, maxScrollY)
                             }
+                            nsv.scrollTo(0, targetScrollY)
                         }
                     }
                 }
@@ -136,5 +151,13 @@ class GeekModeActivity : BaseActivity() {
         } else {
             binding.tvNodeInfo.text = getString(R.string.geek_mode_unknown_config)
         }
+    }
+
+    private fun isLogsNearBottom(): Boolean {
+        val scrollView = binding.logsScrollView
+        val logContent = scrollView.getChildAt(0) ?: return true
+        val maxScrollY = logContent.bottom + scrollView.paddingBottom - scrollView.height
+        val threshold = (24 * resources.displayMetrics.density).toInt()
+        return maxScrollY - scrollView.scrollY <= threshold
     }
 }
